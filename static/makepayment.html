@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://js.stripe.com/terminal/v1/"></script>
+    <link href="/static/tcss.css" rel="stylesheet">
+    <title>Make Payment</title>
+</head>
+<body class="bg-purple-50 bg-opacity-50">
+    <div class="grid grid-cols-4 mt-5 h-24">
+        <button class="ml-7 nav-btn h-20 my-auto" id="cancelButton" style="background-color: #990017;">Cancel</button>
+        <div class="flex col-start-2 col-span-2">
+            <h1 class="text-center m-auto font-bold text-5xl">One Time Donation</h1>
+        </div>
+    </div>
+    <div class="grid grid-cols-5 mt-5">
+        <div class="flex flex-col col-start-2 col-span-3">
+            <img src="/static/img/spinner.svg">
+            <p class="text-5xl mt-5 text-center">Please make payment at card reader.</p>
+            <div class="grid grid-cols-2 mt-32 p-5 bg-white rounded-xl shadow-md">
+                <p class="font-semibold text-5xl">Donation Amount:</p>
+                <p id="donationAmount" class="text-5xl text-right">$</p>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/static/js/makepayment.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/static/tcss.css" rel="stylesheet">
+    <title>KeyT</title>
+</head>
+<body class="bg-purple-50 bg-opacity-50" style="-webkit-touch-callout: none;
+-webkit-user-select: none;
+-khtml-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;">
+    <div class="grid grid-cols-4 mt-5 h-24">
+        <button class="ml-7 nav-btn h-20 my-auto" onclick="location.href='http://192.168.1.205:49163/static/index.html'" style="background-color: #990017;">Cancel</button>
+        <div class="flex col-start-2 col-span-2">
+            <h1 class="text-center m-auto font-bold text-5xl">One Time Donation</h1>
+        </div>
+    </div>
+    <div class="grid grid-cols-6 mt-8">
+        <div class="flex flex-col col-start-2 col-span-4">
+            <label class="text-4xl mb-3">Donation Amount</label>
+            <!-- <input type="number" placeholder="$0"> -->
+            <div id="btn-grp" class="flex flex-row">
+                <button onclick="selectBtn(this.id)" id="10" class="btn-unselected">$10</button>
+                <button onclick="selectBtn(this.id)" id="25" class="btn-unselected">$25</button>
+                <button onclick="selectBtn(this.id)" id="50" class="btn-unselected">$50</button>
+                <button onclick="selectBtn(this.id)" id="100" class="btn-unselected">$100</button>
+                <button onclick="selectBtn(this.id)" id="250" class="btn-unselected">$250</button>
+                <button onclick="selectBtn(this.id)" id="500" class="btn-unselected">$500</button>
+                <button onclick="selectBtn(this.id)" id="1000" class="btn-unselected">$1000</button>
+                <button onclick="selectBtn(this.id)" id="other" class="btn-unselected">Other</button>
+            </div>
+            <input type="number" id="otherInput" placeholder="Minimum Donation: $1" class="mt-4 h-12 text-4xl hidden text-center border border-transparent focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent shadow rounded">
+            <p id="largeDonationNotice" class="text-3xl my-3 text-center hidden">For very large donation amounts, please consider paying by check or bank transfer to avoid card transaction fees.</p>
+            <button onclick="submit()" class="nav-btn mt-5 m-auto bg-green-600 ">Continue</button>
+        </div>
+    </div>
+    <script src="/static/js/keypadT.js"></script>
+</body>
+</html>
