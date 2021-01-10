@@ -43,6 +43,18 @@ app.post('/cancel_intent', express.json(), async (req, res) => {
   res.send(intent);
 })
 
+app.post('/load_card_details', express.json(), async (req, res) => {
+  let intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
+  let pm_details = intent.charges.data[0].payment_method_details?.card_present;
+  res.send({
+    'fingerprint': pm_details?.fingerprint,
+    'last4': pm_details?.last4,
+    'brand': pm_details?.brand,
+    'exp_year': pm_details?.exp_year,
+    'exp_month': pm_details?.exp_month
+  });
+})
+
 app.listen(port, host,() => {
   console.log(`Example app listening at http://0.0.0.0:${port}`)
 })

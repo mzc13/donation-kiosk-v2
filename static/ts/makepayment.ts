@@ -1,4 +1,5 @@
 import {ErrorResponse, ExposedError, IPaymentIntent, Reader, Terminal} from '@stripe/terminal-js';
+import Stripe from 'stripe'
 
 // @ts-ignore
 const host = "http://192.168.1.205:49163"
@@ -113,7 +114,7 @@ async function processIntent(intentId: string | null | undefined){
         headers:{'Content-Type': 'application/json'},
         body:'{"intentId":"' + intentId + '"}'
     });
-    const data : IPaymentIntent = await res.json();
+    const data : Stripe.PaymentIntent = await res.json();
     return data;
 }
 async function cancelIntent(intentId: string){

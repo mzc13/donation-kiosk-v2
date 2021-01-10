@@ -3,35 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="/static/tcss.css" rel="stylesheet">
     <title>Success</title>
 </head>
-<body style="font-size:xx-large;">
-    Success
-    <div id="intent"></div>
-<script>
-    const host = "http://192.168.1.205:49163"
-    function findGetParameter(parameterName) {
-        let result, tmp = [];
-        location.search
-            .substr(1)
-            .split("&")
-            .forEach((item) => {
-            tmp = item.split("=");
-            if (tmp[0] === parameterName)
-                result = decodeURIComponent(tmp[1]);
-        });
-        return result;
-    }
-    async function retrieveIntent(intentId) {
-        const res = await fetch(host + '/retrieve_intent', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: '{"intentId":"' + intentId + '"}'
-        });
-        const data = await res.json();
-        document.getElementById("intent").innerText = JSON.stringify(data);
-    }
-    retrieveIntent(findGetParameter("intentId"));
-</script>
+<body class="bg-purple-50 bg-opacity-50">
+    <div class="grid grid-cols-4 mt-5 h-24">
+        <!-- <button class="ml-5 nav-btn h-20 my-auto" onclick="location.href='http://192.168.1.205:5001/static/index.html'" style="background-color: #990017;">Cancel</button> -->
+        <div class="flex col-start-2 col-span-2">
+            <h1 class="text-center m-auto font-bold text-5xl">One Time Donation</h1>
+        </div>
+    </div>
+    <div class="grid grid-cols-5 mt-5">
+        <div class="flex flex-col col-start-2 col-span-3">
+            <img src="/static/img/check_vector.svg" class="opacity-90 h-48 w-auto" />
+            <div id="message" class="mt-5 text-center text-4xl">Thank you for your donation.</div>
+            <!-- <button class="mx-auto mt-12 p-4 focus:outline-none shadow w-max text-white text-7xl rounded-xl" onclick="location.href='http://192.168.1.205:49163/static/index.html'" style="background-color: #990017;">Cancel</button> -->
+            <div class="mt-20 text-center text-5xl font-semibold">Would you like a receipt?</div>
+            <div class="grid grid-cols-11 mt-5">
+                <button id="yesButton" class="mx-auto p-4 focus:outline-none shadow w-full col-start-1 col-span-5 text-white bg-green-600 text-7xl rounded-xl" onclick="location.href='http://192.168.1.205:49163/static/index.html'">Yes</button>
+                <button id="noButton" class="mx-auto p-4 focus:outline-none shadow w-full col-start-7 col-span-5 text-white bg-red-600 text-7xl rounded-xl" onclick="location.href='http://192.168.1.205:49163/static/index.html'" style="background-color: #990017;">No</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/success.js"></script>
 </body>
 </html>
