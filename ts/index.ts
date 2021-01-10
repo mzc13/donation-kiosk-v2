@@ -3,10 +3,10 @@ import Stripe from 'stripe'
 // import fetch from 'node-fetch'
 
 const app = express();
-const stripe = new Stripe('sk_test_AlSBeOXNHU9IiuETedIQTgdr00Qdby1LHN',{
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!,{
   apiVersion: '2020-08-27'
 })
-const port = 8080;
+const port = Number.parseInt(process.env.KIOSK_PORT!);
 const host = '0.0.0.0';
 
 app.use('/static', express.static('static'));
