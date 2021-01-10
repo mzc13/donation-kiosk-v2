@@ -1,9 +1,10 @@
 
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const host = "http://192.168.1.205:49163"
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const staticHost = host;
 
+// @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
     let result: string | undefined,
         tmp: string[] = [];

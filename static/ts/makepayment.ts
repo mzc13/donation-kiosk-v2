@@ -1,9 +1,9 @@
 import {ErrorResponse, ExposedError, IPaymentIntent, Reader, Terminal} from '@stripe/terminal-js';
 import Stripe from 'stripe'
 
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const host = "http://192.168.1.205:49163"
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const staticHost = host;
 const readerLabel = "women"
 let pIntent : {intentId: string, client_secret: string} | undefined;
@@ -11,7 +11,7 @@ let pIntent : {intentId: string, client_secret: string} | undefined;
 const cancelButton = document.getElementById("cancelButton") as HTMLButtonElement;
 const donationAmountField = document.getElementById("donationAmount")!;
 
-// @ts-ignore
+// @ts-ignore - StripeTerminal gets imported from an external script
 const terminal : Terminal = StripeTerminal.create({
     onFetchConnectionToken: fetchConnectionToken,
     // TODO Replace this with a function that can actually handle reader disconnect
@@ -126,6 +126,8 @@ async function cancelIntent(intentId: string){
     const data : IPaymentIntent | ErrorResponse = await res.json();
     return data;
 }
+
+// @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
     let result: string | undefined,
         tmp: string[] = [];
@@ -136,12 +138,15 @@ function findGetParameter(parameterName: string) {
           tmp = item.split("=");
           if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
         });
+    if(result == null){
+        return ''
+    }
     return result;
 }
 
 function init(){
     let donationAmountString = findGetParameter("donationAmount");
-    if(donationAmountString == null){
+    if(donationAmountString == null || donationAmountString == ''){
         error("No donation amount specified.");
     }
     let donationAmount = Number.parseInt((Number.parseFloat(donationAmountString!)*100).toFixed());

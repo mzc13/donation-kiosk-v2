@@ -1,6 +1,6 @@
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const host = "http://192.168.1.205:49163"
-// @ts-ignore
+// @ts-ignore - This variable gets reused across scripts for multiple pages
 const staticHost = host;
 let btns = {
     '10': document.getElementById("10")!,
@@ -25,9 +25,8 @@ function deselectBtn(btn: HTMLElement){
 function selectBtn(id: keyof typeof btns){
     selected = id;
 
-    for(let btn of Object.keys(btns)){
-        // @ts-ignore
-        deselectBtn(btns[btn]);
+    for(let btn of Object.values(btns)){
+        deselectBtn(btn);
     }
     let tempBtn = btns[id];
     tempBtn.classList.remove("btn-unselected");
