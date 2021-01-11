@@ -1,7 +1,6 @@
 import express from 'express';
 import Stripe from 'stripe'
 import mysql from 'mysql2/promise'
-// import fetch from 'node-fetch'
 
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!,{
@@ -37,7 +36,8 @@ app.post('/create_payment_intent', express.json(), async (req, res) => {
       amount: Number.parseInt(req.body['amount']),
       currency: 'usd',
       payment_method_types: ['card_present'],
-      capture_method: 'manual'
+      capture_method: 'manual',
+      description: 'Bayonne Masjid One Time Donation'
     });
     res.send(JSON.stringify({client_secret: intent.client_secret, id: intent.id}));
   }catch(error){
@@ -90,15 +90,13 @@ app.post('/load_card_details', express.json(), async (req, res) => {
     return;
   }
   let pm_details = intent.charges.data[0].payment_method_details.card_present;
-  let temp = {
+  res.send({
     'fingerprint': pm_details.fingerprint,
     'last4': pm_details.last4,
     'brand': pm_details.brand,
     'exp_year': pm_details.exp_year,
     'exp_month': pm_details.exp_month
-  };
-  console.log(temp);
-  res.send(temp);
+  });
   pool.execute(
     `INSERT INTO Card(fingerprint, pm_id, last4, brand, exp_year, exp_month, read_method, type)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -155,6 +153,91 @@ app.post('/find_card_email', express.json(), async (req, res) => {
       res.sendStatus(504);
     }
   }, 3500);
+})
+
+app.post('/attach_email', express.json(), async (req, res) => {
+  let body = req.body;
+  if(body['intentId'] != null && body['email'] != null){
+    res.sendStatus(200);
+  }else{
+    res.sendStatus(400);
+    return;
+  }
+  try{
+    let intent = await stripe.paymentIntents.update(body['intentId'], {receipt_email: body['email']});
+    let pm_details = intent.charges.data[0].payment_method_details?.card_present;
+
+    let [results, fields] = await pool.query(
+      `SELECT customer_id FROM Customer WHERE email = ?`,
+      [body['email']]
+    );
+    if(Array.isArray(results) && results.length > 0){
+      await stripe.paymentIntents.update(body['intentId'], {
+        // @ts-ignore - customer_id property comes from SQL query
+        customer: results[0]['customer_id']
+      });
+      return;
+    }
+
+    let foundCustomer = async (customerId: string) => {
+      await stripe.paymentIntents.update(body['intentId'], {customer: customerId});
+      await pool.execute(
+        `INSERT INTO Customer(customer_id, email) VALUES(?, ?)`,
+        [customerId, body['email']]
+      );
+      await pool.execute(
+        `INSERT INTO Uses(customer_id, fingerprint) VALUES(?, ?)`,
+        [customerId, pm_details?.fingerprint]
+      );
+    };
+
+    let customerList = await stripe.customers.list({
+      limit: 100,
+      // Look for customers created in the last 24 hours
+      created: {gte: (Math.floor(Date.now() / 1000)) - (24 * 60 * 60)}
+    });
+    for(let customer of customerList.data){
+      if(customer.email != null && customer.email.toLowerCase() == body['email'].toLowerCase()){
+        await foundCustomer(customer.id);
+        return;
+      }else if(customer.metadata['Email'] != null
+        && customer.metadata['Email'].toLowerCase() == body['email'].toLowerCase()){
+        await foundCustomer(customer.id);
+        return;
+      }
+    }
+
+    let cardHolderName: string;
+    if(pm_details?.cardholder_name != null){
+      let splitName = pm_details.cardholder_name.split('/');
+      if(splitName.length == 2){
+        cardHolderName = splitName[1] + ' ' + splitName[0];
+      }else{
+        cardHolderName = pm_details.cardholder_name;
+      }
+    }else{
+      cardHolderName = '';
+    }
+
+    let customer = await stripe.customers.create({
+      description: `${cardHolderName}(${body['email']}) via Donation Kiosk`,
+      email: body['email'],
+      name: cardHolderName,
+      payment_method: (pm_details?.generated_card == null) ? undefined : pm_details.generated_card,
+      metadata:{
+        'Email': body['email'],
+        'Name': cardHolderName
+      }
+    });
+    stripe.paymentIntents.update(intent.id, {
+      customer: customer.id
+    }).catch((e: Error) => console.error(e));
+
+    await foundCustomer(customer.id);
+
+  }catch(error){
+    console.error(error);
+  }
 })
 
 app.listen(port, host,() => {

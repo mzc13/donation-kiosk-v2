@@ -11,8 +11,12 @@
 .btn-selected{
     @apply bg-purple-600 text-white focus:outline-none border-purple-600 border-2 p-4 m-2 shadow-xl w-max text-4xl rounded-xl disabled:opacity-50;
 }
-
-
+.email-btn-unselected{
+    @apply bg-white focus:outline-none border-purple-600 border-2 p-4 m-2 shadow w-max text-black text-2xl rounded-xl disabled:opacity-50;
+}
+.email-btn-selected{
+    @apply bg-purple-600 text-white focus:outline-none border-purple-600 border-2 p-4 m-2 shadow-xl w-max text-2xl rounded-xl disabled:opacity-50;
+}
 
 
 /*!

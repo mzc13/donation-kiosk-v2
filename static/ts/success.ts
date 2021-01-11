@@ -7,6 +7,7 @@ const staticHost = host;
 const yesButton = document.getElementById('yesButton') as HTMLButtonElement;
 const noButton = document.getElementById('noButton') as HTMLButtonElement;
 
+let intentId = findGetParameter('intentId')
 let fingerprint = '';
 let brand = '';
 let last4 = '';
@@ -46,26 +47,17 @@ async function loadCardDetails(intentId: string){
 }
 
 async function yesAction(){
-    const res = await fetch(host + '/find_card_email', {
-        method:'POST',
-        headers:{'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            'fingerprint': fingerprint,
-            'last4': last4,
-            'exp_month': expMonth,
-            'exp_year': expYear,
-            'brand': brand
-        })
-    });
-    const data = await res.json();
-    console.log(data);
+    window.location.replace(
+        `/static/receipt.html?` 
+        + `intentId=${intentId}&fingerprint=${fingerprint}&last4=${last4}&exp_month=${expMonth}&exp_year=${expYear}&brand=${brand}`
+    );
 }
 
 function noAction(){
-
+    window.location.replace('/static/index.html');
 }
 
 yesButton.onclick = yesAction;
 noButton.onclick = noAction;
 
-loadCardDetails(findGetParameter('intentId'));
+loadCardDetails(intentId);
