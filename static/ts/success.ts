@@ -49,7 +49,13 @@ async function yesAction(){
     const res = await fetch(host + '/find_card_email', {
         method:'POST',
         headers:{'Content-Type': 'application/json'},
-        body:'{"fingerprint":"' + fingerprint + '"}'
+        body: JSON.stringify({
+            'fingerprint': fingerprint,
+            'last4': last4,
+            'exp_month': expMonth,
+            'exp_year': expYear,
+            'brand': brand
+        })
     });
     const data = await res.json();
     console.log(data);

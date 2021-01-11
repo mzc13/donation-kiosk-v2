@@ -23,39 +23,68 @@ const pool = mysql.createPool({
 app.use('/static', express.static('static'));
 
 app.get('/', (req, res) => {
-  res.send('It works');
+  res.send('Kiosk App Running');
 })
 
-let get_token = async (req: express.Request, res: express.Response) => res.send(await stripe.terminal.connectionTokens.create());
+let get_token = async (req: express.Request, res: express.Response) => 
+  res.send(await stripe.terminal.connectionTokens.create());
 app.get('/connection_token', get_token);
 app.post('/connection_token', get_token);
 
 app.post('/create_payment_intent', express.json(), async (req, res) => {
-  let intent = await stripe.paymentIntents.create({
-    amount: Number.parseInt(req.body['amount']),
-    currency: 'usd',
-    payment_method_types: ['card_present'],
-    capture_method: 'manual'
-  });
-  res.send(JSON.stringify({client_secret: intent.client_secret, id: intent.id}));
+  try{
+    let intent = await stripe.paymentIntents.create({
+      amount: Number.parseInt(req.body['amount']),
+      currency: 'usd',
+      payment_method_types: ['card_present'],
+      capture_method: 'manual'
+    });
+    res.send(JSON.stringify({client_secret: intent.client_secret, id: intent.id}));
+  }catch(error){
+    console.error(error);
+    res.sendStatus(400);
+  }
 })
 
 app.post('/process_intent', express.json(), async (req, res) => {
-  let intent = await stripe.paymentIntents.capture(req.body['intentId']);
-  res.send(intent);
+  try{
+    let intent = await stripe.paymentIntents.capture(req.body['intentId']);
+    res.send(intent);
+  }catch(error){
+    console.error(error);
+    res.sendStatus(400);
+  }
 })
 
 app.post('/retrieve_intent', express.json(), async (req, res) => {
-  res.send(await stripe.paymentIntents.retrieve(req.body['intentId']));
+  try{
+    let intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
+    res.send(intent);
+  }catch(error){
+    console.error(error);
+    res.sendStatus(400);
+  }
 })
 
 app.post('/cancel_intent', express.json(), async (req, res) => {
-  let intent = await stripe.paymentIntents.cancel(req.body['intentId']);
-  res.send(intent);
+  try{
+    let intent = await stripe.paymentIntents.cancel(req.body['intentId']);
+    res.send(intent);
+  }catch(error){
+    console.error(error);
+    res.sendStatus(400);
+  }
 })
 
 app.post('/load_card_details', express.json(), async (req, res) => {
-  let intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
+  let intent: Stripe.Response<Stripe.PaymentIntent>;
+  try{
+    intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
+  }catch(error){
+    console.error(error);
+    res.sendStatus(400);
+    return;
+  }
   if(intent.charges.data[0].payment_method_details?.card_present == null){
     res.sendStatus(400);
     return;
@@ -81,26 +110,51 @@ app.post('/load_card_details', express.json(), async (req, res) => {
 app.post('/find_card_email', express.json(), async (req, res) => {
   let fingerprintQueryLoading = true;
   let heuristicQueryLoading = true;
-  if(req.body['fingerprint'] != null){
+  let body = req.body;
+
+  if(body['fingerprint'] != null){
     pool.query(
       `SELECT DISTINCT Customer.email
       FROM Customer INNER JOIN Uses ON Customer.customer_id = Uses.customer_id
         INNER JOIN Card ON Uses.fingerprint = Card.fingerprint
       WHERE Card.fingerprint = ?`,
-      [req.body['fingerprint']]
+      [body['fingerprint']]
     ).then(([results, fields]) => {
       fingerprintQueryLoading = false;
       if(res.headersSent == false){
         if(Array.isArray(results) && results.length > 0){
-          res.send({emails: results});
+          res.send({emails: results, from: 'fingerprint'});
         }else if(heuristicQueryLoading == false){
           res.sendStatus(502);
         }
       }
     }).catch((e: Error) => console.error(e));
   }
-  // if(req.body['last4'] != null && req.body['exp_month'] != null && req.body['exp_year'] != null
-  //   && )
+
+  if(body['last4'] != null && body['exp_month'] != null && body['exp_year'] != null && body['brand'] != null){
+    pool.query(
+      `SELECT DISTINCT Customer.email
+      FROM Customer INNER JOIN Uses ON Customer.customer_id = Uses.customer_id
+        INNER JOIN Card ON Uses.fingerprint = Card.fingerprint
+      WHERE Card.last4 = ? AND Card.exp_month = ? AND Card.exp_year = ? AND Card.brand = ?`,
+      [body['last4'], body['exp_month'], body['exp_year'], body['brand']]
+    ).then(([results, fields]) => {
+      heuristicQueryLoading = false;
+      if(res.headersSent == false){
+        if(Array.isArray(results) && results.length > 0){
+          res.send({emails: results, from: 'heuristic'});
+        }else if(fingerprintQueryLoading == false){
+          res.sendStatus(502);
+        }
+      }
+    }).catch((e: Error) => console.error(e));
+  }
+
+  setTimeout(() => {
+    if(res.headersSent == false){
+      res.sendStatus(504);
+    }
+  }, 3500);
 })
 
 app.listen(port, host,() => {
