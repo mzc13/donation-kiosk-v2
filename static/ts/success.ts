@@ -45,8 +45,14 @@ async function loadCardDetails(intentId: string){
     expMonth = data['exp_month'];
 }
 
-function yesAction(){
-    
+async function yesAction(){
+    const res = await fetch(host + '/find_card_email', {
+        method:'POST',
+        headers:{'Content-Type': 'application/json'},
+        body:'{"fingerprint":"' + fingerprint + '"}'
+    });
+    const data = await res.json();
+    console.log(data);
 }
 
 function noAction(){
