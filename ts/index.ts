@@ -1,17 +1,62 @@
 import express from 'express';
 import Stripe from 'stripe'
 import mysql from 'mysql2/promise'
+import { createLogger, format, transports } from 'winston';
+
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss'
+    }),
+    format.errors({ stack: true }),
+    format.splat(),
+    format.json()
+  ),
+  defaultMeta: { service: 'node-kiosk' },
+  transports: [
+    //
+    // - Write to all logs with level `info` and below to `quick-start-combined.log`.
+    // - Write all logs error (and below) to `quick-start-error.log`.
+    //
+    new transports.File({ filename: 'logs/quick-start-error.log', level: 'error' }),
+    new transports.File({ filename: 'logs/quick-start-combined.log' }),
+    new transports.File({ filename: 'logs/quick-start-http-and-combined.log', level: 'http' })
+  ]
+});
+//
+// If we're not in production then **ALSO** log to the `console`
+// with the colorized simple format.
+//
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new transports.Console({
+    format: format.combine(
+      format.colorize(),
+      format.simple()
+    )
+  }));
+}
+let logMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.http(`${req.method} ${req.originalUrl}`, {
+    ip: req.ip,
+    ips: req.ips,
+    body: req.body
+  });
+  next();
+}
 
 const app = express();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!,{
   apiVersion: '2020-08-27'
 })
-const port = Number.parseInt('49163');
-const host = '0.0.0.0';
+
+const host = process.argv[2];
+const port = Number.parseInt(process.argv[3]);
 
 const pool = mysql.createPool({
   host: 'db',
   user: 'root',
+  // TODO Change this to environment variable MYSQL_ROOT_PASSWORD
   password: 'temp_password',
   database: 'kiosk',
   waitForConnections: true,
@@ -20,17 +65,26 @@ const pool = mysql.createPool({
 })
 
 app.use('/static', express.static('static'));
+app.use(express.json());
+app.use(logMiddleware);
 
 app.get('/', (req, res) => {
   res.send('Kiosk App Running');
 })
 
-let get_token = async (req: express.Request, res: express.Response) => 
-  res.send(await stripe.terminal.connectionTokens.create());
+let get_token = async (req: express.Request, res: express.Response) => {
+  try{
+    let token = await stripe.terminal.connectionTokens.create();
+    res.send(token);
+  }catch(error){
+    res.sendStatus(502);
+    logger.error('Error creating connection token', error);
+  }
+};
 app.get('/connection_token', get_token);
 app.post('/connection_token', get_token);
 
-app.post('/create_payment_intent', express.json(), async (req, res) => {
+app.post('/create_payment_intent', async (req, res) => {
   try{
     let intent = await stripe.paymentIntents.create({
       amount: Number.parseInt(req.body['amount']),
@@ -41,52 +95,53 @@ app.post('/create_payment_intent', express.json(), async (req, res) => {
     });
     res.send(JSON.stringify({client_secret: intent.client_secret, id: intent.id}));
   }catch(error){
-    console.error(error);
     res.sendStatus(400);
+    logger.error('Error creating PaymentIntent', error);
   }
 })
 
-app.post('/process_intent', express.json(), async (req, res) => {
+app.post('/process_intent', async (req, res) => {
   try{
     let intent = await stripe.paymentIntents.capture(req.body['intentId']);
     res.send(intent);
   }catch(error){
-    console.error(error);
     res.sendStatus(400);
+    logger.error('Error capturing PaymentIntent', error);
   }
 })
 
-app.post('/retrieve_intent', express.json(), async (req, res) => {
+app.post('/retrieve_intent', async (req, res) => {
   try{
     let intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
     res.send(intent);
   }catch(error){
-    console.error(error);
     res.sendStatus(400);
+    logger.error('Error retrieving PaymentIntent', error);
   }
 })
 
-app.post('/cancel_intent', express.json(), async (req, res) => {
+app.post('/cancel_intent', async (req, res) => {
   try{
     let intent = await stripe.paymentIntents.cancel(req.body['intentId']);
     res.send(intent);
   }catch(error){
-    console.error(error);
     res.sendStatus(400);
+    logger.error('Error canceling PaymentIntent', error);
   }
 })
 
-app.post('/load_card_details', express.json(), async (req, res) => {
+app.post('/load_card_details', async (req, res) => {
   let intent: Stripe.Response<Stripe.PaymentIntent>;
   try{
     intent = await stripe.paymentIntents.retrieve(req.body['intentId']);
   }catch(error){
-    console.error(error);
     res.sendStatus(400);
+    logger.error('Error retrieving PaymentIntent after checkout', error);
     return;
   }
   if(intent.charges.data[0].payment_method_details?.card_present == null){
     res.sendStatus(400);
+    logger.warn('Retrieved PaymentIntent did not have card_present details', {intentId: intent.id});
     return;
   }
   let pm_details = intent.charges.data[0].payment_method_details.card_present;
@@ -102,10 +157,16 @@ app.post('/load_card_details', express.json(), async (req, res) => {
     VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
     [pm_details.fingerprint, pm_details.generated_card, pm_details.last4, pm_details.brand, pm_details.exp_year,
     pm_details.exp_month, pm_details.read_method, 'card_present']
-  ).catch((e: Error) => console.error(e.message));
+  ).catch((e) => {
+    if('code' in e && e.code == 'ER_DUP_ENTRY'){
+      logger.warn('Duplicate entry when creating new Card in database', {sqlMessage: e.sqlMessage});
+    }else{
+      logger.error('Unexpected error trying to create new Card in database', e);
+    }
+  });
 })
 
-app.post('/find_card_email', express.json(), async (req, res) => {
+app.post('/find_card_email', (req, res) => {
   let fingerprintQueryLoading = true;
   let heuristicQueryLoading = true;
   let body = req.body;
@@ -126,7 +187,9 @@ app.post('/find_card_email', express.json(), async (req, res) => {
           res.sendStatus(502);
         }
       }
-    }).catch((e: Error) => console.error(e));
+    }).catch((e: Error) => {
+      logger.error('Unexpected error trying to find Customer email from Card fingerprint', e);
+    });
   }
 
   if(body['last4'] != null && body['exp_month'] != null && body['exp_year'] != null && body['brand'] != null){
@@ -145,7 +208,9 @@ app.post('/find_card_email', express.json(), async (req, res) => {
           res.sendStatus(502);
         }
       }
-    }).catch((e: Error) => console.error(e));
+    }).catch((e: Error) => {
+      logger.error('Unexpected error trying to find Customer email from Card details', e);
+    });
   }
 
   setTimeout(() => {
@@ -155,12 +220,14 @@ app.post('/find_card_email', express.json(), async (req, res) => {
   }, 3500);
 })
 
-app.post('/attach_email', express.json(), async (req, res) => {
+
+app.post('/attach_email', async (req, res) => {
   let body = req.body;
   if(body['intentId'] != null && body['email'] != null){
     res.sendStatus(200);
   }else{
     res.sendStatus(400);
+    logger.warn('Missing request parameters trying to attach email');
     return;
   }
   try{
@@ -179,7 +246,22 @@ app.post('/attach_email', express.json(), async (req, res) => {
       return;
     }
 
-    let foundCustomer = async (customerId: string) => {
+    /*
+     * At this point, the Customer isn't in the database so they have to be added.
+     * Either, the Customer was created on Stripe within the past 24 hours, after
+     * the last time the Customer db update script was run, or they are an entirely
+     * new Customer which now has to get added to Stripe.
+     */
+
+    /**
+     * Adds a Customer from Stripe to the local database, and links them with the Card
+     * in the payment_method_details specified by pm_details.
+     * @param customerId Stripe ID of Customer
+     * @param pm_details PaymentMethodDetails of a card_present Stripe transaction.
+     * @throws Might throw an SQL Duplicate Entry error if database was modified after
+     *    the check in the previous query.
+     */
+    let foundCustomer = async (customerId: string, pm_details: Stripe.Charge.PaymentMethodDetails.CardPresent | undefined) => {
       await stripe.paymentIntents.update(body['intentId'], {customer: customerId});
       await pool.execute(
         `INSERT INTO Customer(customer_id, email) VALUES(?, ?)`,
@@ -198,11 +280,11 @@ app.post('/attach_email', express.json(), async (req, res) => {
     });
     for(let customer of customerList.data){
       if(customer.email != null && customer.email.toLowerCase() == body['email'].toLowerCase()){
-        await foundCustomer(customer.id);
+        await foundCustomer(customer.id, pm_details);
         return;
       }else if(customer.metadata['Email'] != null
         && customer.metadata['Email'].toLowerCase() == body['email'].toLowerCase()){
-        await foundCustomer(customer.id);
+        await foundCustomer(customer.id, pm_details);
         return;
       }
     }
@@ -233,13 +315,13 @@ app.post('/attach_email', express.json(), async (req, res) => {
       customer: customer.id
     }).catch((e: Error) => console.error(e));
 
-    await foundCustomer(customer.id);
+    await foundCustomer(customer.id, pm_details);
 
   }catch(error){
-    console.error(error);
+    logger.error('Error trying to attach email to PaymentIntent', error);
   }
 })
 
 app.listen(port, host,() => {
-  console.log(`Example app listening at http://0.0.0.0:${port}`)
+  logger.info(`App listening at http://${host}:${port}`)
 })
