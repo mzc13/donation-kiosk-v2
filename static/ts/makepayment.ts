@@ -1,10 +1,10 @@
 import {ErrorResponse, ExposedError, IPaymentIntent, Reader, Terminal} from '@stripe/terminal-js';
 import Stripe from 'stripe'
 
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const host = "http://192.168.1.205:49163"
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const staticHost = host;
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const host = "http://192.168.1.205:49163"
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const staticHost = host;
 const readerLabel = "women"
 let pIntent : {intentId: string, client_secret: string} | undefined;
 
@@ -20,7 +20,7 @@ const terminal : Terminal = StripeTerminal.create({
 
 // TODO Modify this function and remove the debugging part
 function error(message: string, errorObject: ExposedError | null = null){
-    let redirStr = staticHost + "/static/error.html?message=" + message;
+    let redirStr = "/static/error.html?message=" + message;
     if(errorObject != null){
         redirStr += "&errorObject=" + JSON.stringify(errorObject);
     }
@@ -28,7 +28,7 @@ function error(message: string, errorObject: ExposedError | null = null){
 }
 
 async function fetchConnectionToken() {
-    const response = await fetch(host + '/connection_token', { method: "GET" });
+    const response = await fetch('/connection_token', { method: "GET" });
     const data = await response.json();
     return data.secret;
 }
@@ -78,7 +78,7 @@ async function checkout(amount: Number){
         } else {
             // Notifying your backend to capture result.paymentIntent.id
             await processIntent(processingResult.paymentIntent.id);
-            window.location.replace(staticHost + "/static/success.html?intentId=" + processingResult.paymentIntent.id);
+            window.location.replace("/static/success.html?intentId=" + processingResult.paymentIntent.id);
         }
     }
 }
@@ -89,18 +89,18 @@ async function cancelPayment(){
     }
     if(terminal.getConnectionStatus() == "not_connected"
         || terminal.getConnectionStatus() == "connecting"){
-        window.location.replace(staticHost + "/static/index.html");
+        window.location.replace("/static/index.html");
         return;
     }
     const cancelResult = await terminal.clearReaderDisplay();
     if('error' in cancelResult){
         error(cancelResult.error.message);
     }else{
-        window.location.replace(staticHost + "/static/index.html");
+        window.location.replace("/static/index.html");
     }
 }
 async function createIntent(amount: Number){
-    const res = await fetch(host + '/create_payment_intent', {
+    const res = await fetch('/create_payment_intent', {
         method:'POST',
         headers:{'Content-Type': 'application/json'},
         body:'{"amount":' + amount + '}'
@@ -109,7 +109,7 @@ async function createIntent(amount: Number){
     return {'intentId': data['id'], 'client_secret': data['client_secret']};
 }
 async function processIntent(intentId: string | null | undefined){
-    const res = await fetch(host + '/process_intent', {
+    const res = await fetch('/process_intent', {
         method:'POST',
         headers:{'Content-Type': 'application/json'},
         body:'{"intentId":"' + intentId + '"}'
@@ -118,7 +118,7 @@ async function processIntent(intentId: string | null | undefined){
     return data;
 }
 async function cancelIntent(intentId: string){
-    const res = await fetch(host + '/cancel_intent', {
+    const res = await fetch('/cancel_intent', {
         method:'POST',
         headers:{'Content-Type': 'application/json'},
         body:'{"intentId":"' + intentId + '"}'

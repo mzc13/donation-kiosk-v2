@@ -1,8 +1,8 @@
 
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const host = "http://192.168.1.205:49163"
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const staticHost = host;
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const host = "http://192.168.1.205:49163"
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const staticHost = host;
 
 // @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
@@ -23,4 +23,4 @@ function findGetParameter(parameterName: string) {
 document.getElementById("message")!.innerText = findGetParameter("message");
 document.getElementById("error")!.innerText = findGetParameter("errorObject");
 
-setTimeout(() => window.location.replace(staticHost + "/static/index.html"), 10000);
+setTimeout(() => window.location.replace("/static/index.html"), 10000);

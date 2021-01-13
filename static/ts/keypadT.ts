@@ -1,7 +1,7 @@
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const host = "http://192.168.1.205:49163"
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const staticHost = host;
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const host = "http://192.168.1.205:49163"
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const staticHost = host;
 let btns = {
     '10': document.getElementById("10")!,
     '25': document.getElementById("25")!,
@@ -44,7 +44,7 @@ function selectBtn(id: keyof typeof btns){
 function submit(){
     if(selected != "other"){
         console.log("Success", selected);
-        window.location.href = staticHost + "/static/makepayment.html?donationAmount=" + selected;
+        window.location.href = "/static/makepayment.html?donationAmount=" + selected;
     }else{
         let inputVal = otherInput.value;
         let inputFloat = Number.parseFloat(inputVal);
@@ -59,7 +59,7 @@ function submit(){
             largeDonationNotice.classList.remove("hidden");
             return;
         }
-        window.location.href = staticHost + "/static/makepayment.html?donationAmount=" + inputFloat.toFixed(2);
+        window.location.href = "/static/makepayment.html?donationAmount=" + inputFloat.toFixed(2);
     }
 }
 

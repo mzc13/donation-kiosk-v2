@@ -1,8 +1,8 @@
 
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const host = "http://192.168.1.205:49163"
-// @ts-ignore - This variable gets reused across scripts for multiple pages
-const staticHost = host;
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const host = "http://192.168.1.205:49163"
+// // @ts-ignore - This variable gets reused across scripts for multiple pages
+// const staticHost = host;
 
 const yesButton = document.getElementById('yesButton') as HTMLButtonElement;
 const noButton = document.getElementById('noButton') as HTMLButtonElement;
@@ -33,7 +33,7 @@ function findGetParameter(parameterName: string) {
 
 async function loadCardDetails(intentId: string){
     if(intentId == '') return;
-    const res = await fetch(host + '/load_card_details', {
+    const res = await fetch('/load_card_details', {
         method:'POST',
         headers:{'Content-Type': 'application/json'},
         body:'{"intentId":"' + intentId + '"}'
