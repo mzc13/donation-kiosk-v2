@@ -1,7 +1,7 @@
 import express from 'express';
 import Stripe from 'stripe'
 import mysql from 'mysql2/promise'
-import { createLogger, format, transports } from 'winston';
+import { createLogger, debug, format, transports } from 'winston';
 
 const logger = createLogger({
   level: 'info',
@@ -33,7 +33,8 @@ if (process.env.NODE_ENV !== 'production') {
     format: format.combine(
       format.colorize(),
       format.simple()
-    )
+    ),
+    level: 'debug'
   }));
 }
 let logMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -56,8 +57,7 @@ const port = Number.parseInt(process.argv[3]);
 const pool = mysql.createPool({
   host: 'db',
   user: 'root',
-  // TODO Change this to environment variable MYSQL_ROOT_PASSWORD
-  password: 'temp_password',
+  password: process.env.MYSQL_ROOT_PASSWORD,
   database: 'kiosk',
   waitForConnections: true,
   connectionLimit: 8,

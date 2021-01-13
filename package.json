@@ -6,7 +6,7 @@
   "scripts": {
     "start": "npm install && npm run build:ts && npm run build:static:ts && node js/index.js 0.0.0.0 49164",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon localhost 49163",
+    "dev": "nodemon -L js/index.js 0.0.0.0 49163",
     "build:css": "tailwind build preTailwind.css -o static/tcss.css",
     "build:ts": "npx tsc",
     "build:static:ts": "cd static && npx tsc"
