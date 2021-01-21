@@ -254,6 +254,7 @@ app.post("/attach_email", async (req, res) => {
     return;
   }
   try {
+    // TODO replace this with custom email sendout
     let intent = await stripe.paymentIntents.update(body["intentId"], {
       receipt_email: body["email"],
     });
