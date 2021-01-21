@@ -264,6 +264,17 @@ async function sendOneTimeEmail(params: OneTimeEmailReceiptParams) {
   }
 }
 
+function duplicateSQLEntry(e: Error | { code: string }) {
+  if (
+    ("code" in e && e.code == "ER_DUP_ENTRY") ||
+    ("message" in e && e.message.includes("Duplicate entry"))
+  ) {
+    return;
+  } else {
+    logger.error("Unexpected SQL Error" ,e);
+  }
+}
+
 app.post("/attach_email", async (req, res) => {
   let body = req.body;
   if (body["intentId"] != null && body["email"] != null) {
@@ -300,23 +311,6 @@ app.post("/attach_email", async (req, res) => {
       email_destination: body["email"],
       email_subject: "Bayonne Muslims Donation Receipt",
     });
-    let [results, fields] = await pool.query(`SELECT customer_id FROM Customer WHERE email = ?`, [
-      body["email"],
-    ]);
-    if (Array.isArray(results) && results.length > 0) {
-      await stripe.paymentIntents.update(body["intentId"], {
-        // @ts-ignore - customer_id property comes from SQL query
-        customer: results[0]["customer_id"],
-      });
-      return;
-    }
-
-    /*
-     * At this point, the Customer isn't in the database so they have to be added.
-     * Either, the Customer was created on Stripe within the past 24 hours, after
-     * the last time the Customer db update script was run, or they are an entirely
-     * new Customer which now has to get added to Stripe.
-     */
 
     /**
      * Adds a Customer from Stripe to the local database, and links them with the Card
@@ -331,15 +325,43 @@ app.post("/attach_email", async (req, res) => {
       pm_details: Stripe.Charge.PaymentMethodDetails.CardPresent | undefined
     ) => {
       await stripe.paymentIntents.update(body["intentId"], { customer: customerId });
-      await pool.execute(`INSERT INTO Customer(customer_id, email) VALUES(?, ?)`, [
-        customerId,
-        body["email"],
-      ]);
-      await pool.execute(`INSERT INTO Uses(customer_id, fingerprint) VALUES(?, ?)`, [
-        customerId,
-        pm_details?.fingerprint,
-      ]);
+      try {
+        await pool.execute(`INSERT INTO Customer(customer_id, email) VALUES(?, ?)`, [
+          customerId,
+          body["email"],
+        ]);
+      } catch (error) {
+        duplicateSQLEntry(error);
+      }
+      try {
+        await pool.execute(`INSERT INTO Uses(customer_id, fingerprint) VALUES(?, ?)`, [
+          customerId,
+          pm_details?.fingerprint,
+        ]);
+      } catch (error) {
+        duplicateSQLEntry(error);
+      }
     };
+
+    let [results, fields] = await pool.query(
+      `SELECT customer_id FROM Customer WHERE Customer.email = ?`,
+      [body["email"]]
+    );
+    if (Array.isArray(results) && results.length > 0) {
+      // @ts-ignore - customer_id property comes from SQL query
+      await foundCustomer(results[0]["customer_id"], pm_details);
+      logger.info("Found Customer in database");
+      return;
+    }
+
+    /*
+     * At this point, the Customer isn't in the database so they have to be added.
+     * Either, the Customer was created on Stripe within the past 24 hours, after
+     * the last time the Customer db update script was run, or they are an entirely
+     * new Customer which now has to get added to Stripe.
+     */
+
+    
 
     let customerList = await stripe.customers.list({
       limit: 100,
@@ -349,12 +371,14 @@ app.post("/attach_email", async (req, res) => {
     for (let customer of customerList.data) {
       if (customer.email != null && customer.email.toLowerCase() == body["email"].toLowerCase()) {
         await foundCustomer(customer.id, pm_details);
+        logger.info("Found Customer on Stripe");
         return;
       } else if (
         customer.metadata["Email"] != null &&
         customer.metadata["Email"].toLowerCase() == body["email"].toLowerCase()
       ) {
         await foundCustomer(customer.id, pm_details);
+        logger.info("Found Customer on Stripe");
         return;
       }
     }
@@ -388,6 +412,7 @@ app.post("/attach_email", async (req, res) => {
       .catch((e: Error) => console.error(e));
 
     await foundCustomer(customer.id, pm_details);
+    logger.info("Needed to create new Customer");
   } catch (error) {
     logger.error("Error trying to attach email to PaymentIntent", error);
   }

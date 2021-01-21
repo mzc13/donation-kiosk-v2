@@ -21,13 +21,14 @@ interface ChargeRow {
   //   id: string;
   "Customer ID": string;
   "Customer Email": string;
-  "Card ID": string;
-  "Card Last4": string;
-  "Card Brand": string;
-  "Card Exp Month": string;
-  "Card Exp Year": string;
+  "Card ID": string | null;
+  "Card Last4": string | null;
+  "Card Brand": string | null;
+  "Card Exp Month": string | number | null;
+  "Card Exp Year": string | number | null;
   //   "Card Name": string;
-  "Card Fingerprint": string;
+  "Card Fingerprint": string | null;
+  Type: string | null | undefined;
 }
 
 function sleep(ms: number) {
@@ -48,7 +49,6 @@ function duplicateSQLEntry(e: Error | { code: string }) {
 }
 
 async function addChargeToDb(row: ChargeRow) {
-  console.log(row);
   try {
     await pool.execute(`INSERT INTO Customer(customer_id, email) VALUES(?, ?)`, [
       row["Customer ID"],
@@ -69,7 +69,7 @@ async function addChargeToDb(row: ChargeRow) {
         row["Card Exp Year"],
         row["Card Brand"] == "American Express" ? "amex" : row["Card Brand"],
         "online",
-        "card",
+        row["Type"],
       ]
     );
   } catch (error) {
@@ -85,30 +85,61 @@ async function addChargeToDb(row: ChargeRow) {
   }
 }
 
-let chArray: Array<ChargeRow> = [];
-fs.createReadStream(process.argv[2])
-  .pipe(csv())
-  .on("data", (row: ChargeRow) => chArray.push(row))
-  .on("end", async () => {
-    for (let row of chArray) {
-      if (row["Customer ID"] != null && row["Customer ID"] != "") {
-        if (row["Customer Email"] != null && row["Customer Email"] != "") {
-          addChargeToDb(row);
-        } else {
-          let cust = await stripe.customers.retrieve(row["Customer ID"]);
-          if (
-            "metadata" in cust &&
-            cust.metadata["Email"] != null &&
-            cust.metadata["Email"] != ""
-          ) {
-            row["Customer Email"] = cust.metadata["Email"];
-            addChargeToDb(row);
-            await stripe.customers.update(cust.id, {
-              email: row["Customer Email"],
-            });
-          }
-          await sleep(100);
+const stripe2 = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2020-08-27",
+});
+
+let updateCharges = async () => {
+  let charges = await stripe2.charges.list({
+    limit: 100,
+    created: {
+      // Charges created in the last 24 hours
+      gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60,
+    },
+  });
+  for (let cData of charges.data) {
+    await sleep(100);
+    if (typeof cData.customer === "string") {
+      let cust = await stripe2.customers.retrieve(cData.customer);
+      if (
+        cust.deleted == true ||
+        cData.payment_method_details?.card == null ||
+        cData.payment_method_details.card.fingerprint == null
+      ) {
+        continue;
+      }
+      if (cust.email != null && cust.email != "") {
+        addChargeToDb({
+          "Customer ID": cust.id,
+          "Customer Email": cust.email,
+          "Card ID": cData.payment_method,
+          "Card Last4": cData.payment_method_details.card.last4,
+          "Card Brand": cData.payment_method_details.card.brand,
+          "Card Exp Month": cData.payment_method_details.card.exp_month,
+          "Card Exp Year": cData.payment_method_details.card.exp_year,
+          "Card Fingerprint": cData.payment_method_details.card.fingerprint,
+          Type: cData.payment_method_details.type,
+        });
+      } else {
+        if ("metadata" in cust && cust.metadata["Email"] != null && cust.metadata["Email"] != "") {
+          addChargeToDb({
+            "Customer ID": cust.id,
+            "Customer Email": cust.metadata["Email"],
+            "Card ID": cData.payment_method,
+            "Card Last4": cData.payment_method_details.card.last4,
+            "Card Brand": cData.payment_method_details.card.brand,
+            "Card Exp Month": cData.payment_method_details.card.exp_month,
+            "Card Exp Year": cData.payment_method_details.card.exp_year,
+            "Card Fingerprint": cData.payment_method_details.card.fingerprint,
+            Type: cData.payment_method_details.type,
+          });
+          await stripe.customers.update(cust.id, {
+            email: cust.metadata["Email"],
+          });
         }
       }
     }
-  });
+  }
+};
+
+updateCharges().then(() => process.exit(0));
