@@ -1,7 +1,9 @@
 import express from "express";
 import Stripe from "stripe";
 import mysql from "mysql2/promise";
-import { createLogger, debug, format, transports } from "winston";
+import { createLogger, format, transports } from "winston";
+import fetch from "node-fetch";
+import { OneTimeEmailReceiptParams } from "./projTypes";
 
 const logger = createLogger({
   level: "info",
@@ -244,6 +246,24 @@ app.post("/find_card_email", (req, res) => {
   }, 3500);
 });
 
+async function sendOneTimeEmail(params: OneTimeEmailReceiptParams) {
+  try {
+    pool
+      .execute("INSERT INTO Receipt(transaction_id) VALUES(?)", [params.transaction_id])
+      .catch((e) => logger.warn("Error adding receipt to database", e));
+    const res = await fetch("http://email:8080/one-time-receipt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      logger.error("Error trying to send email receipt", res.status);
+    }
+  } catch (error) {
+    logger.error("Unexpected error trying to email receipt", error);
+  }
+}
+
 app.post("/attach_email", async (req, res) => {
   let body = req.body;
   if (body["intentId"] != null && body["email"] != null) {
@@ -254,12 +274,32 @@ app.post("/attach_email", async (req, res) => {
     return;
   }
   try {
-    // TODO replace this with custom email sendout
-    let intent = await stripe.paymentIntents.update(body["intentId"], {
-      receipt_email: body["email"],
-    });
+    let intent = await stripe.paymentIntents.retrieve(body["intentId"]);
     let pm_details = intent.charges.data[0].payment_method_details?.card_present;
 
+    sendOneTimeEmail({
+      amount_paid: intent.amount_received,
+      // TODO Make sure to set timezone data to get proper date
+      date_paid: new Date().toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      last4: pm_details?.last4 == null ? "----" : pm_details.last4, // Must be string to prevent leading zero cutoff
+      description: "One Time In Person Donation",
+      card_brand: pm_details?.brand == null ? "unknown" : pm_details.brand,
+      transaction_id: intent.id,
+      application_name:
+        pm_details?.receipt?.application_preferred_name == null
+          ? ""
+          : pm_details.receipt.application_preferred_name,
+      aid:
+        pm_details?.receipt?.dedicated_file_name == null
+          ? ""
+          : pm_details.receipt.dedicated_file_name,
+      email_destination: body["email"],
+      email_subject: "Bayonne Muslims Donation Receipt",
+    });
     let [results, fields] = await pool.query(`SELECT customer_id FROM Customer WHERE email = ?`, [
       body["email"],
     ]);
