@@ -271,7 +271,7 @@ function duplicateSQLEntry(e: Error | { code: string }) {
   ) {
     return;
   } else {
-    logger.error("Unexpected SQL Error" ,e);
+    logger.error("Unexpected SQL Error", e);
   }
 }
 
@@ -343,10 +343,12 @@ app.post("/attach_email", async (req, res) => {
       }
     };
 
-    let [results, fields] = await pool.query(
-      `SELECT customer_id FROM Customer WHERE Customer.email = ?`,
-      [body["email"]]
-    );
+    let [
+      results,
+      fields,
+    ] = await pool.query(`SELECT customer_id FROM Customer WHERE Customer.email = ?`, [
+      body["email"],
+    ]);
     if (Array.isArray(results) && results.length > 0) {
       // @ts-ignore - customer_id property comes from SQL query
       await foundCustomer(results[0]["customer_id"], pm_details);
@@ -360,8 +362,6 @@ app.post("/attach_email", async (req, res) => {
      * the last time the Customer db update script was run, or they are an entirely
      * new Customer which now has to get added to Stripe.
      */
-
-    
 
     let customerList = await stripe.customers.list({
       limit: 100,
@@ -415,6 +415,26 @@ app.post("/attach_email", async (req, res) => {
     logger.info("Needed to create new Customer");
   } catch (error) {
     logger.error("Error trying to attach email to PaymentIntent", error);
+  }
+});
+
+app.post("/process_subscription_intent", async (req, res) => {
+  let intent = await stripe.paymentIntents.update(req.body["intentId"], {
+    customer: 'cus_Ik29hHUtFBC1kB'
+  });
+  let pm_details = intent.charges.data[0].payment_method_details;
+  if(pm_details?.card_present?.generated_card != null){
+    let pm = await stripe.paymentMethods.attach(pm_details.card_present.generated_card, {
+      customer: 'cus_Ik29hHUtFBC1kB'
+    })
+    let subscription = await stripe.subscriptions.create({
+      customer: "cus_Ik29hHUtFBC1kB",
+      default_payment_method: pm_details.card_present.generated_card,
+      items: [{ price: "price_1IBj4CBpNWYY0aYoVy7F0M5i" }],
+    });
+    res.send(subscription);
+  }else{
+    res.sendStatus(400);
   }
 });
 

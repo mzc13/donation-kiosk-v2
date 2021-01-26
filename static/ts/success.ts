@@ -55,3 +55,5 @@ yesButton.onclick = yesAction;
 noButton.onclick = noAction;
 
 loadCardDetails(intentId);
+
+// TODO Check if subscription failed and change text accordingly

@@ -4,9 +4,6 @@ import Stripe from "stripe";
 const readerLabel = "women";
 let pIntent: { intentId: string; client_secret: string } | undefined;
 
-const cancelButton = document.getElementById("cancelButton") as HTMLButtonElement;
-const donationAmountField = document.getElementById("donationAmount")!;
-
 // @ts-ignore - StripeTerminal gets imported from an external script
 const terminal: Terminal = StripeTerminal.create({
   onFetchConnectionToken: fetchConnectionToken,
@@ -68,14 +65,26 @@ async function checkout(amount: Number) {
     error(cardCaptureResult.error.message);
   } else {
     // The result of processing the payment
-    cancelButton.disabled = true;
+    // cancelButton.disabled = true;
     const processingResult = await terminal.processPayment(cardCaptureResult.paymentIntent);
     if ("error" in processingResult) {
       error(processingResult.error.message);
     } else {
       // Notifying your backend to capture result.paymentIntent.id
-      await processIntent(processingResult.paymentIntent.id);
-      window.location.replace("/static/success.html?intentId=" + processingResult.paymentIntent.id);
+      let pm_details = processingResult.paymentIntent.charges.data[0].payment_method_details;
+      if (
+        pm_details.card_present.read_method == "contactless_emv" ||
+        pm_details.card_present.read_method == "contactless_magstripe_mode"
+      ) {
+        await processIntent(processingResult.paymentIntent.id);
+        window.location.replace(
+          `/static/success.html?intentId=${processingResult.paymentIntent.id}&subscriptionFail=true`
+        );
+      } else {
+        console.log(
+          JSON.stringify(await processSubscriptionIntent(processingResult.paymentIntent.id))
+        );
+      }
     }
   }
 }
@@ -107,6 +116,15 @@ async function createIntent(amount: Number) {
   const data = await res.json();
   return { intentId: data["id"], client_secret: data["client_secret"] };
 }
+async function processSubscriptionIntent(intentId: string | null | undefined) {
+  const res = await fetch("/process_subscription_intent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: '{"intentId":"' + intentId + '"}',
+  });
+  const data: Stripe.Subscription = await res.json();
+  return data;
+}
 async function processIntent(intentId: string | null | undefined) {
   const res = await fetch("/process_intent", {
     method: "POST",
@@ -126,32 +144,4 @@ async function cancelIntent(intentId: string) {
   return data;
 }
 
-// @ts-ignore - This function gets reused across scripts for multiple pages
-function findGetParameter(parameterName: string) {
-  let result: string | undefined,
-    tmp: string[] = [];
-  location.search
-    .substr(1)
-    .split("&")
-    .forEach((item) => {
-      tmp = item.split("=");
-      if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
-    });
-  if (result == null) {
-    return "";
-  }
-  return result;
-}
-
-function init() {
-  let donationAmountString = findGetParameter("donationAmount");
-  if (donationAmountString == null || donationAmountString == "") {
-    error("No donation amount specified.");
-  }
-  let donationAmount = Number.parseInt((Number.parseFloat(donationAmountString!) * 100).toFixed());
-  connectReaderHandler().then(() => checkout(donationAmount));
-  donationAmountField.innerHTML = "$" + (donationAmount / 100).toFixed(2);
-  cancelButton.onclick = cancelPayment;
-}
-
-init();
+connectReaderHandler().then(() => checkout(1000));
