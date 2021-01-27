@@ -4,6 +4,9 @@ import Stripe from "stripe";
 const readerLabel = "women";
 let pIntent: { intentId: string; client_secret: string } | undefined;
 
+const cancelButton = document.getElementById("cancelButton") as HTMLButtonElement;
+const donationAmountField = document.getElementById("donationAmount") as HTMLParagraphElement;
+
 // @ts-ignore - StripeTerminal gets imported from an external script
 const terminal: Terminal = StripeTerminal.create({
   onFetchConnectionToken: fetchConnectionToken,
@@ -59,13 +62,13 @@ async function checkout(amount: Number) {
     error("Not connected to card reader.");
     return;
   }
-  pIntent = await createIntent(amount);
+  pIntent = await createSubscriptionIntent(amount);
   const cardCaptureResult = await terminal.collectPaymentMethod(pIntent.client_secret);
   if ("error" in cardCaptureResult) {
     error(cardCaptureResult.error.message);
   } else {
     // The result of processing the payment
-    // cancelButton.disabled = true;
+    cancelButton.disabled = true;
     const processingResult = await terminal.processPayment(cardCaptureResult.paymentIntent);
     if ("error" in processingResult) {
       error(processingResult.error.message);
@@ -111,8 +114,8 @@ async function cancelPayment() {
     window.location.replace("/static/index.html");
   }
 }
-async function createIntent(amount: Number) {
-  const res = await fetch("/create_payment_intent", {
+async function createSubscriptionIntent(amount: Number) {
+  const res = await fetch("/create_subscription_intent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: '{"amount":' + amount + "}",
@@ -148,4 +151,33 @@ async function cancelIntent(intentId: string) {
   return data;
 }
 
-connectReaderHandler().then(() => checkout(1000));
+// @ts-ignore - This function gets reused across scripts for multiple pages
+function findGetParameter(parameterName: string) {
+  let result: string | undefined,
+    tmp: string[] = [];
+  location.search
+    .substr(1)
+    .split("&")
+    .forEach((item) => {
+      tmp = item.split("=");
+      if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
+    });
+  if (result == null) {
+    return "";
+  }
+  return result;
+}
+
+function init() {
+  let donationAmountString = findGetParameter("donationAmount");
+  if (donationAmountString == null || donationAmountString == "") {
+    error("No donation amount specified.");
+    return;
+  }
+  let donationAmount = Number.parseInt((Number.parseFloat(donationAmountString) * 100).toFixed());
+  connectReaderHandler().then(() => checkout(donationAmount));
+  donationAmountField.innerHTML = "$" + (donationAmount / 100).toFixed(2) + ' / Month';
+  cancelButton.onclick = cancelPayment;
+}
+
+init();

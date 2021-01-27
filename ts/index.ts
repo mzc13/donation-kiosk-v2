@@ -3,7 +3,13 @@ import Stripe from "stripe";
 import mysql from "mysql2/promise";
 import { createLogger, format, transports } from "winston";
 import fetch from "node-fetch";
-import { OneTimeEmailReceiptParams } from "./projTypes";
+import {
+  AmountCarrier,
+  CardInfoCarrier,
+  IntentIdCarrier,
+  OneTimeEmailReceiptParams,
+  ReceiptInfoCarrier,
+} from "./projTypes";
 import dayjs from "dayjs";
 
 const logger = createLogger({
@@ -87,9 +93,10 @@ app.get("/connection_token", get_token);
 app.post("/connection_token", get_token);
 
 app.post("/create_payment_intent", async (req, res) => {
+  let body: AmountCarrier = req.body;
   try {
     let intent = await stripe.paymentIntents.create({
-      amount: Number.parseInt(req.body["amount"]),
+      amount: Number.parseInt(body["amount"]),
       currency: "usd",
       payment_method_types: ["card_present"],
       capture_method: "manual",
@@ -103,8 +110,9 @@ app.post("/create_payment_intent", async (req, res) => {
 });
 
 app.post("/process_intent", async (req, res) => {
+  let body: IntentIdCarrier = req.body;
   try {
-    let intent = await stripe.paymentIntents.capture(req.body["intentId"]);
+    let intent = await stripe.paymentIntents.capture(body["intentId"]);
     res.send(intent);
   } catch (error) {
     res.sendStatus(400);
@@ -113,8 +121,9 @@ app.post("/process_intent", async (req, res) => {
 });
 
 app.post("/retrieve_intent", async (req, res) => {
+  let body: IntentIdCarrier = req.body;
   try {
-    let intent = await stripe.paymentIntents.retrieve(req.body["intentId"]);
+    let intent = await stripe.paymentIntents.retrieve(body["intentId"]);
     res.send(intent);
   } catch (error) {
     res.sendStatus(400);
@@ -123,8 +132,9 @@ app.post("/retrieve_intent", async (req, res) => {
 });
 
 app.post("/cancel_intent", async (req, res) => {
+  let body: IntentIdCarrier = req.body;
   try {
-    let intent = await stripe.paymentIntents.cancel(req.body["intentId"]);
+    let intent = await stripe.paymentIntents.cancel(body["intentId"]);
     res.send(intent);
   } catch (error) {
     res.sendStatus(400);
@@ -133,9 +143,10 @@ app.post("/cancel_intent", async (req, res) => {
 });
 
 app.post("/load_card_details", async (req, res) => {
+  let body: IntentIdCarrier = req.body;
   let intent: Stripe.Response<Stripe.PaymentIntent>;
   try {
-    intent = await stripe.paymentIntents.retrieve(req.body["intentId"]);
+    intent = await stripe.paymentIntents.retrieve(body["intentId"]);
   } catch (error) {
     res.sendStatus(400);
     logger.error("Error retrieving PaymentIntent after checkout", error);
@@ -185,7 +196,7 @@ app.post("/load_card_details", async (req, res) => {
 app.post("/find_card_email", (req, res) => {
   let fingerprintQueryLoading = true;
   let heuristicQueryLoading = true;
-  let body = req.body;
+  let body: CardInfoCarrier = req.body;
 
   if (body["fingerprint"] != null) {
     pool
@@ -277,7 +288,7 @@ function duplicateSQLEntry(e: Error | { code: string }) {
 }
 
 app.post("/attach_email", async (req, res) => {
-  let body = req.body;
+  let body: ReceiptInfoCarrier = req.body;
   if (body["intentId"] != null && body["email"] != null) {
     res.sendStatus(200);
   } else {
@@ -416,6 +427,23 @@ app.post("/attach_email", async (req, res) => {
     logger.info("Needed to create new Customer");
   } catch (error) {
     logger.error("Error trying to attach email to PaymentIntent", error);
+  }
+});
+
+app.post("/create_subscription_intent", async (req, res) => {
+  let body: AmountCarrier = req.body;
+  try {
+    let intent = await stripe.paymentIntents.create({
+      amount: Number.parseInt(body["amount"]),
+      currency: "usd",
+      payment_method_types: ["card_present"],
+      capture_method: "manual",
+      description: "Bayonne Masjid Monthly Donation",
+    });
+    res.send(JSON.stringify({ client_secret: intent.client_secret, id: intent.id }));
+  } catch (error) {
+    res.sendStatus(400);
+    logger.error("Error creating PaymentIntent", error);
   }
 });
 
