@@ -71,19 +71,23 @@ async function checkout(amount: Number) {
       error(processingResult.error.message);
     } else {
       // Notifying your backend to capture result.paymentIntent.id
-      let pm_details = processingResult.paymentIntent.charges.data[0].payment_method_details;
-      if (
-        pm_details.card_present.read_method == "contactless_emv" ||
-        pm_details.card_present.read_method == "contactless_magstripe_mode"
-      ) {
-        await processIntent(processingResult.paymentIntent.id);
-        window.location.replace(
-          `/static/success.html?intentId=${processingResult.paymentIntent.id}&subscriptionFail=true`
-        );
+      if (processingResult.paymentIntent.charges?.data != null) {
+        let pm_details = processingResult.paymentIntent.charges.data[0].payment_method_details;
+        if (
+          pm_details?.card_present?.read_method == "contactless_emv" ||
+          pm_details?.card_present?.read_method == "contactless_magstripe_mode"
+        ) {
+          await processIntent(processingResult.paymentIntent.id);
+          window.location.replace(
+            `/static/success.html?intentId=${processingResult.paymentIntent.id}&subscriptionFail=true`
+          );
+        } else {
+          console.log(
+            JSON.stringify(await processSubscriptionIntent(processingResult.paymentIntent.id))
+          );
+        }
       } else {
-        console.log(
-          JSON.stringify(await processSubscriptionIntent(processingResult.paymentIntent.id))
-        );
+        error("There was an error processing your card.");
       }
     }
   }

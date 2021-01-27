@@ -4,6 +4,7 @@ import mysql from "mysql2/promise";
 import { createLogger, format, transports } from "winston";
 import fetch from "node-fetch";
 import { OneTimeEmailReceiptParams } from "./projTypes";
+import dayjs from "dayjs";
 
 const logger = createLogger({
   level: "info",
@@ -418,22 +419,34 @@ app.post("/attach_email", async (req, res) => {
   }
 });
 
+/**
+ * Returns the Unix timestamp(in seconds) corresponding to 3 AM on the first Friday of next month.
+ * @param now Returned timestamp will be relative to this optional parameter. Defaults to a dayjs
+ * object created when the function is called.
+ */
+function getFirstFridayOfNextMonth(now = dayjs()) {
+  let firstDayOfNextMonth = now.add(1, "month").startOf("month");
+  let firstFridayOfNextMonth =
+    firstDayOfNextMonth.day() == 6 ? firstDayOfNextMonth.day(12) : firstDayOfNextMonth.day(5);
+  return firstFridayOfNextMonth.add(3, "hour").unix();
+}
+
 app.post("/process_subscription_intent", async (req, res) => {
   let intent = await stripe.paymentIntents.update(req.body["intentId"], {
-    customer: 'cus_Ik29hHUtFBC1kB'
+    customer: "cus_Ik29hHUtFBC1kB",
   });
   let pm_details = intent.charges.data[0].payment_method_details;
-  if(pm_details?.card_present?.generated_card != null){
+  if (pm_details?.card_present?.generated_card != null) {
     let pm = await stripe.paymentMethods.attach(pm_details.card_present.generated_card, {
-      customer: 'cus_Ik29hHUtFBC1kB'
-    })
+      customer: "cus_Ik29hHUtFBC1kB",
+    });
     let subscription = await stripe.subscriptions.create({
       customer: "cus_Ik29hHUtFBC1kB",
       default_payment_method: pm_details.card_present.generated_card,
       items: [{ price: "price_1IBj4CBpNWYY0aYoVy7F0M5i" }],
     });
     res.send(subscription);
-  }else{
+  } else {
     res.sendStatus(400);
   }
 });

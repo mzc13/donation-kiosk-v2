@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import mysql from "mysql2/promise";
-import csv from "csv-parser";
+// import csv from "csv-parser";
 import fs from "fs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
