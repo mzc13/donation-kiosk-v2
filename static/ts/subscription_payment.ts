@@ -66,33 +66,41 @@ async function checkout(amount: Number) {
   const cardCaptureResult = await terminal.collectPaymentMethod(pIntent.client_secret);
   if ("error" in cardCaptureResult) {
     error(cardCaptureResult.error.message);
-  } else {
-    // The result of processing the payment
-    cancelButton.disabled = true;
-    const processingResult = await terminal.processPayment(cardCaptureResult.paymentIntent);
-    if ("error" in processingResult) {
-      error(processingResult.error.message);
+    return;
+  }
+  // The result of processing the payment
+  cancelButton.disabled = true;
+  const processingResult = await terminal.processPayment(cardCaptureResult.paymentIntent);
+  if ("error" in processingResult) {
+    error(processingResult.error.message);
+    return;
+  }
+  // Notifying your backend to capture result.paymentIntent.id
+  if (processingResult.paymentIntent.charges?.data != null) {
+    let pm_details = processingResult.paymentIntent.charges.data[0].payment_method_details;
+    if (
+      pm_details?.card_present?.read_method == "contactless_emv" ||
+      pm_details?.card_present?.read_method == "contactless_magstripe_mode"
+    ) {
+      await processIntent(processingResult.paymentIntent.id);
+      window.location.replace(
+        `/static/success.html?intentId=${processingResult.paymentIntent.id}&subscriptionFail=true`
+      );
     } else {
-      // Notifying your backend to capture result.paymentIntent.id
-      if (processingResult.paymentIntent.charges?.data != null) {
-        let pm_details = processingResult.paymentIntent.charges.data[0].payment_method_details;
-        if (
-          pm_details?.card_present?.read_method == "contactless_emv" ||
-          pm_details?.card_present?.read_method == "contactless_magstripe_mode"
-        ) {
-          await processIntent(processingResult.paymentIntent.id);
-          window.location.replace(
-            `/static/success.html?intentId=${processingResult.paymentIntent.id}&subscriptionFail=true`
-          );
-        } else {
-          console.log(
-            JSON.stringify(await processSubscriptionIntent(processingResult.paymentIntent.id))
-          );
-        }
-      } else {
-        error("There was an error processing your card.");
-      }
+      console.log(JSON.stringify(pm_details));
+      let cardInfo = await loadCardDetails(processingResult.paymentIntent.id);
+      window.location.replace(
+        "/static/subscription_email.html?" +
+          `intentId=${processingResult.paymentIntent.id}` +
+          `&fingerprint=${cardInfo["fingerprint"]}` +
+          `&last4=${cardInfo["last4"]}` +
+          `&exp_month=${cardInfo["exp_month"]}` +
+          `&exp_year=${cardInfo["exp_year"]}` +
+          `&brand=${cardInfo["brand"]}`
+      );
     }
+  } else {
+    error("There was an error processing your card.");
   }
 }
 // Gets called by cancel button
@@ -132,6 +140,15 @@ async function processSubscriptionIntent(intentId: string | null | undefined) {
   const data: Stripe.Subscription = await res.json();
   return data;
 }
+async function loadCardDetails(intentId: string | null | undefined) {
+  if (intentId == "") return;
+  const res = await fetch("/load_card_details", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: '{"intentId":"' + intentId + '"}',
+  });
+  return res.json();
+}
 async function processIntent(intentId: string | null | undefined) {
   const res = await fetch("/process_intent", {
     method: "POST",
@@ -162,7 +179,7 @@ function findGetParameter(parameterName: string) {
       tmp = item.split("=");
       if (tmp[0] === parameterName) result = decodeURIComponent(tmp[1]);
     });
-  if (result == null) {
+  if (result == null || result == "null" || result == "undefined") {
     return "";
   }
   return result;
@@ -176,7 +193,7 @@ function init() {
   }
   let donationAmount = Number.parseInt((Number.parseFloat(donationAmountString) * 100).toFixed());
   connectReaderHandler().then(() => checkout(donationAmount));
-  donationAmountField.innerHTML = "$" + (donationAmount / 100).toFixed(2) + ' / Month';
+  donationAmountField.innerHTML = "$" + (donationAmount / 100).toFixed(2) + " / Month";
   cancelButton.onclick = cancelPayment;
 }
 
