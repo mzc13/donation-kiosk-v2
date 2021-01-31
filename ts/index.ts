@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import mysql from "mysql2/promise";
 import { createLogger, format, transports } from "winston";
 import fetch from "node-fetch";
+import pricesDict from 'priceDict.ts';
+// import * as defaults from './priceDict.ts';
 import {
   AmountCarrier,
   CardInfoCarrier,
@@ -287,6 +289,116 @@ function duplicateSQLEntry(e: Error | { code: string }) {
   }
 }
 
+async function findCustomer(
+  intent: Stripe.PaymentIntent,
+  body: ReceiptInfoCarrier,
+  pm_details = intent.charges.data[0].payment_method_details?.card_present
+) {
+  /**
+   * Adds a Customer from Stripe to the local database, and links them with the Card
+   * in the payment_method_details specified by pm_details.
+   * @param customerId Stripe ID of Customer
+   * @param pm_details PaymentMethodDetails of a card_present Stripe transaction.
+   * @throws Might throw an SQL Duplicate Entry error if database was modified after
+   *    the check in the previous query.
+   */
+  let foundCustomer = async (
+    customerId: string,
+    pm_details: Stripe.Charge.PaymentMethodDetails.CardPresent | undefined
+  ) => {
+    await stripe.paymentIntents.update(body["intentId"], { customer: customerId });
+    try {
+      await pool.execute(`INSERT INTO Customer(customer_id, email) VALUES(?, ?)`, [
+        customerId,
+        body["email"],
+      ]);
+    } catch (error) {
+      duplicateSQLEntry(error);
+    }
+    try {
+      await pool.execute(`INSERT INTO Uses(customer_id, fingerprint) VALUES(?, ?)`, [
+        customerId,
+        pm_details?.fingerprint,
+      ]);
+    } catch (error) {
+      duplicateSQLEntry(error);
+    }
+  };
+
+  let [
+    results,
+    fields,
+  ] = await pool.query(`SELECT customer_id FROM Customer WHERE Customer.email = ?`, [
+    body["email"],
+  ]);
+  if (Array.isArray(results) && results.length > 0) {
+    // @ts-ignore - customer_id property comes from SQL query
+    let customerId: string = results[0]["customer_id"];
+    await foundCustomer(customerId, pm_details);
+    logger.info("Found Customer in database");
+    return customerId;
+  }
+
+  /*
+   * At this point, the Customer isn't in the database so they have to be added.
+   * Either, the Customer was created on Stripe within the past 24 hours, after
+   * the last time the Customer db update script was run, or they are an entirely
+   * new Customer which now has to get added to Stripe.
+   */
+
+  let customerList = await stripe.customers.list({
+    limit: 100,
+    // Look for customers created in the last 24 hours
+    created: { gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60 },
+  });
+  for (let customer of customerList.data) {
+    if (customer.email != null && customer.email.toLowerCase() == body["email"].toLowerCase()) {
+      await foundCustomer(customer.id, pm_details);
+      logger.info("Found Customer on Stripe");
+      return customer.id;
+    } else if (
+      customer.metadata["Email"] != null &&
+      customer.metadata["Email"].toLowerCase() == body["email"].toLowerCase()
+    ) {
+      await foundCustomer(customer.id, pm_details);
+      logger.info("Found Customer on Stripe");
+      return customer.id;
+    }
+  }
+
+  let cardHolderName: string;
+  if (pm_details?.cardholder_name != null) {
+    let splitName = pm_details.cardholder_name.split("/");
+    if (splitName.length == 2) {
+      cardHolderName = splitName[1] + " " + splitName[0];
+    } else {
+      cardHolderName = pm_details.cardholder_name;
+    }
+  } else {
+    cardHolderName = "";
+  }
+
+  let customer = await stripe.customers.create({
+    description: `${cardHolderName}(${body["email"]}) via Donation Kiosk`,
+    email: body["email"],
+    name: cardHolderName,
+    payment_method: pm_details?.generated_card == null ? undefined : pm_details.generated_card,
+    metadata: {
+      Email: body["email"],
+      Name: cardHolderName,
+    },
+  });
+  stripe.paymentIntents
+    .update(intent.id, {
+      customer: customer.id,
+    })
+    .catch((e: Error) => console.error(e));
+
+  await foundCustomer(customer.id, pm_details);
+  logger.info("Needed to create new Customer");
+  return customer.id;
+}
+
 app.post("/attach_email", async (req, res) => {
   let body: ReceiptInfoCarrier = req.body;
   if (body["intentId"] != null && body["email"] != null) {
@@ -324,107 +436,7 @@ app.post("/attach_email", async (req, res) => {
       email_subject: "Bayonne Muslims Donation Receipt",
     });
 
-    /**
-     * Adds a Customer from Stripe to the local database, and links them with the Card
-     * in the payment_method_details specified by pm_details.
-     * @param customerId Stripe ID of Customer
-     * @param pm_details PaymentMethodDetails of a card_present Stripe transaction.
-     * @throws Might throw an SQL Duplicate Entry error if database was modified after
-     *    the check in the previous query.
-     */
-    let foundCustomer = async (
-      customerId: string,
-      pm_details: Stripe.Charge.PaymentMethodDetails.CardPresent | undefined
-    ) => {
-      await stripe.paymentIntents.update(body["intentId"], { customer: customerId });
-      try {
-        await pool.execute(`INSERT INTO Customer(customer_id, email) VALUES(?, ?)`, [
-          customerId,
-          body["email"],
-        ]);
-      } catch (error) {
-        duplicateSQLEntry(error);
-      }
-      try {
-        await pool.execute(`INSERT INTO Uses(customer_id, fingerprint) VALUES(?, ?)`, [
-          customerId,
-          pm_details?.fingerprint,
-        ]);
-      } catch (error) {
-        duplicateSQLEntry(error);
-      }
-    };
-
-    let [
-      results,
-      fields,
-    ] = await pool.query(`SELECT customer_id FROM Customer WHERE Customer.email = ?`, [
-      body["email"],
-    ]);
-    if (Array.isArray(results) && results.length > 0) {
-      // @ts-ignore - customer_id property comes from SQL query
-      await foundCustomer(results[0]["customer_id"], pm_details);
-      logger.info("Found Customer in database");
-      return;
-    }
-
-    /*
-     * At this point, the Customer isn't in the database so they have to be added.
-     * Either, the Customer was created on Stripe within the past 24 hours, after
-     * the last time the Customer db update script was run, or they are an entirely
-     * new Customer which now has to get added to Stripe.
-     */
-
-    let customerList = await stripe.customers.list({
-      limit: 100,
-      // Look for customers created in the last 24 hours
-      created: { gte: Math.floor(Date.now() / 1000) - 24 * 60 * 60 },
-    });
-    for (let customer of customerList.data) {
-      if (customer.email != null && customer.email.toLowerCase() == body["email"].toLowerCase()) {
-        await foundCustomer(customer.id, pm_details);
-        logger.info("Found Customer on Stripe");
-        return;
-      } else if (
-        customer.metadata["Email"] != null &&
-        customer.metadata["Email"].toLowerCase() == body["email"].toLowerCase()
-      ) {
-        await foundCustomer(customer.id, pm_details);
-        logger.info("Found Customer on Stripe");
-        return;
-      }
-    }
-
-    let cardHolderName: string;
-    if (pm_details?.cardholder_name != null) {
-      let splitName = pm_details.cardholder_name.split("/");
-      if (splitName.length == 2) {
-        cardHolderName = splitName[1] + " " + splitName[0];
-      } else {
-        cardHolderName = pm_details.cardholder_name;
-      }
-    } else {
-      cardHolderName = "";
-    }
-
-    let customer = await stripe.customers.create({
-      description: `${cardHolderName}(${body["email"]}) via Donation Kiosk`,
-      email: body["email"],
-      name: cardHolderName,
-      payment_method: pm_details?.generated_card == null ? undefined : pm_details.generated_card,
-      metadata: {
-        Email: body["email"],
-        Name: cardHolderName,
-      },
-    });
-    stripe.paymentIntents
-      .update(intent.id, {
-        customer: customer.id,
-      })
-      .catch((e: Error) => console.error(e));
-
-    await foundCustomer(customer.id, pm_details);
-    logger.info("Needed to create new Customer");
+    findCustomer(intent, body, pm_details);
   } catch (error) {
     logger.error("Error trying to attach email to PaymentIntent", error);
   }
@@ -445,6 +457,30 @@ app.post("/create_subscription_intent", async (req, res) => {
     res.sendStatus(400);
     logger.error("Error creating PaymentIntent", error);
   }
+});
+
+app.post("/attach_subscription_email", async (req, res) => {
+  let body: ReceiptInfoCarrier = req.body;
+  if (body["intentId"] != null && body["email"] != null) {
+    res.sendStatus(200);
+  } else {
+    res.sendStatus(400);
+    logger.warn("Missing request parameters trying to attach email");
+    return;
+  }
+
+  try {
+    let intent = await stripe.paymentIntents.retrieve(body["intentId"]);
+    if (intent.charges.data[0].payment_method_details?.card_present?.generated_card == null) {
+      await stripe.paymentIntents.capture(intent.id);
+      await findCustomer(intent, body);
+      return;
+    }
+    let customerId = await findCustomer(intent, body);
+    intent = await stripe.paymentIntents.update(intent.id, {
+      customer: customerId,
+    });
+  } catch (error) {}
 });
 
 /**

@@ -2,7 +2,10 @@ let emailOptions: Array<{ id: string; element: HTMLButtonElement }> = [];
 const emailBtns = document.getElementById("btn-grp") as HTMLDivElement;
 const otherEmailInput = document.getElementById("otherInput") as HTMLInputElement;
 const finishButton = document.getElementById("finish") as HTMLButtonElement;
+const cancelButton = document.getElementById("cancelButton") as HTMLButtonElement;
 let selectedEmail = "other";
+
+const intentId = findGetParameter("intentId");
 
 // @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
@@ -37,8 +40,7 @@ async function getEmails() {
     return [];
   }
   const data = await res.json();
-  let emails: Array<{ email: string }> = data["emails"];
-  return emails;
+  return data["emails"] as Array<{ email: string }>;
 }
 
 async function loadEmailButtons() {
@@ -88,27 +90,52 @@ function selectEmail(btnId: string) {
 }
 
 async function finish() {
-  let attachEmail = async (email: string) => {
-    await fetch("/attach_email", {
+  let attachSubscriptionEmail = async (email: string) => {
+    await fetch("/attach_subscription_email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: email.trim(),
-        intentId: findGetParameter("intentId"),
+        intentId: intentId,
       }),
     });
   };
   if (selectedEmail != "other") {
-    attachEmail(selectedEmail);
+    attachSubscriptionEmail(selectedEmail);
+    window.location.replace("/static/index.html");
   } else if (otherEmailInput.value.trim() != "") {
-    attachEmail(otherEmailInput.value.trim());
+    attachSubscriptionEmail(otherEmailInput.value.trim());
+    window.location.replace("/static/index.html");
+  } else {
+    otherEmailInput.classList.remove("focus:ring-purple-600");
+    otherEmailInput.classList.add("ring-red-300");
+    otherEmailInput.focus();
   }
-  clearTimeout(timeout);
-  window.location.replace("/static/index.html");
+}
+
+function error(message: string) {
+  let redirStr = "/static/error.html?message=" + message;
+  window.location.replace(redirStr);
+}
+
+function cancelPayment() {
+  if (intentId != null && intentId != "") {
+    cancelIntent(intentId);
+  }
+  error("Payment Cancelled");
+}
+async function cancelIntent(intentId: string) {
+  const res = await fetch("/cancel_intent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: '{"intentId":"' + intentId + '"}',
+  });
+  const data = await res.json();
+  return data;
 }
 
 loadEmailButtons();
 finishButton.onclick = finish;
-let timeout = setTimeout(() => window.location.replace("/static/index.html"), 120000);
+cancelButton.onclick = cancelPayment;
 
-export {}
+export {};
