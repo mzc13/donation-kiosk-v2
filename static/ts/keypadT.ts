@@ -1,14 +1,14 @@
 let btns = {
-  "10": document.getElementById("10")!,
-  "25": document.getElementById("25")!,
-  "50": document.getElementById("50")!,
-  "100": document.getElementById("100")!,
-  "250": document.getElementById("250")!,
-  "500": document.getElementById("500")!,
-  "1000": document.getElementById("1000")!,
-  other: document.getElementById("other")!,
+  "10": document.getElementById("10") as HTMLButtonElement,
+  "25": document.getElementById("25") as HTMLButtonElement,
+  "50": document.getElementById("50") as HTMLButtonElement,
+  "100": document.getElementById("100") as HTMLButtonElement,
+  "250": document.getElementById("250") as HTMLButtonElement,
+  "500": document.getElementById("500") as HTMLButtonElement,
+  "1000": document.getElementById("1000") as HTMLButtonElement,
+  other: document.getElementById("other") as HTMLButtonElement,
 };
-let otherInput = document.getElementById("otherInput")! as HTMLInputElement;
+let otherInput = document.getElementById("otherInput") as HTMLInputElement;
 let largeDonationNotice = document.getElementById("largeDonationNotice")!;
 let selected: keyof typeof btns;
 const getKeyValue = <T extends object, U extends keyof T>(key: U) => (obj: T) => obj[key];

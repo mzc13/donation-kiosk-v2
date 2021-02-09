@@ -4,12 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="/static/tcss.css" rel="stylesheet" />
-    <title>One Time Donation | Receipt</title>
+    <title>Subscription Email</title>
   </head>
   <body class="bg-purple-50 bg-opacity-50">
     <div class="grid grid-cols-4 mt-5 h-24">
+      <button class="ml-7 nav-btn h-20 my-auto" id="cancelButton" style="background-color: #990017">
+        Cancel
+      </button>
       <div class="flex col-start-2 col-span-2">
-        <h1 class="text-center m-auto font-bold text-5xl">One Time Donation Receipt</h1>
+        <h1 class="text-center m-auto font-bold text-5xl">Monthly Donation</h1>
       </div>
     </div>
     <div class="grid grid-cols-6 mt-8">
@@ -24,12 +27,13 @@
         />
         <button
           id="finish"
+          type="button"
           class="p-5 focus:outline-none shadow w-1/3 text-white text-6xl rounded-xl disabled:opacity-50 mt-5 mx-auto bg-green-600"
         >
           Finish
         </button>
       </div>
     </div>
-    <script type="module" src="/static/js/receipt.js"></script>
+    <script type="module" src="/static/js/subscription_email.js"></script>
   </body>
 </html>

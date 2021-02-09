@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://js.stripe.com/terminal/v1/"></script>
     <link href="/static/tcss.css" rel="stylesheet" />
-    <title>Make Payment</title>
+    <title>Subscrption Payment</title>
   </head>
   <body class="bg-purple-50 bg-opacity-50">
     <div class="grid grid-cols-4 mt-5 h-24">
@@ -13,7 +13,7 @@
         Cancel
       </button>
       <div class="flex col-start-2 col-span-2">
-        <h1 class="text-center m-auto font-bold text-5xl">One Time Donation</h1>
+        <h1 class="text-center m-auto font-bold text-5xl">Monthly Donation</h1>
       </div>
     </div>
     <div class="grid grid-cols-5 mt-5">
@@ -24,8 +24,11 @@
           <p class="font-semibold text-5xl">Donation Amount:</p>
           <p id="donationAmount" class="text-5xl text-right">$</p>
         </div>
+        <p class="text-4xl mt-7 text-gray-600 text-center">
+          Contactless payment methods cannot be used for monthly donation.
+        </p>
       </div>
     </div>
-    <script type="module" src="/static/js/makepayment.js"></script>
+    <script type="module" src="/static/js/subscription_payment.js"></script>
   </body>
 </html>
