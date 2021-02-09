@@ -3,14 +3,14 @@ import Stripe from "stripe";
 import mysql from "mysql2/promise";
 import { createLogger, format, transports } from "winston";
 import fetch from "node-fetch";
-import pricesDict from 'priceDict.ts';
-// import * as defaults from './priceDict.ts';
+import { pricesDict, otherProductId } from "./priceDict";
 import {
   AmountCarrier,
   CardInfoCarrier,
   IntentIdCarrier,
   OneTimeEmailReceiptParams,
   ReceiptInfoCarrier,
+  SubscriptionEmailReceiptParams,
 } from "./projTypes";
 import dayjs from "dayjs";
 
@@ -114,7 +114,10 @@ app.post("/create_payment_intent", async (req, res) => {
 app.post("/process_intent", async (req, res) => {
   let body: IntentIdCarrier = req.body;
   try {
-    let intent = await stripe.paymentIntents.capture(body["intentId"]);
+    let intent = await stripe.paymentIntents.update(body["intentId"], {
+      description: "Bayonne Masjid One Time Donation",
+    });
+    intent = await stripe.paymentIntents.capture(intent.id);
     res.send(intent);
   } catch (error) {
     res.sendStatus(400);
@@ -260,21 +263,101 @@ app.post("/find_card_email", (req, res) => {
   }, 3500);
 });
 
-async function sendOneTimeEmail(params: OneTimeEmailReceiptParams) {
+/**
+ * Function to send email receipt.
+ * Do not call this function until payment has been captured to ensure proper information gets sent
+ * in receipt.
+ * @param intent Stripe PaymentIntent object
+ * @param email Destination email for receipt
+ * @param pm_details Stripe PaymentMethodDetails for a card present Stripe transaction
+ */
+async function sendOneTimeEmailReceipt(
+  intent: Stripe.PaymentIntent,
+  email: string,
+  pm_details = intent.charges.data[0].payment_method_details?.card_present
+) {
   try {
     pool
-      .execute("INSERT INTO Receipt(transaction_id) VALUES(?)", [params.transaction_id])
+      .execute("INSERT INTO Receipt(transaction_id) VALUES(?)", [intent.id])
       .catch((e) => logger.warn("Error adding receipt to database", e));
+    let params: OneTimeEmailReceiptParams = {
+      amount_paid: intent.amount_received,
+      date_paid: new Date().toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      last4: pm_details?.last4 == null ? "----" : pm_details.last4, // Must be string to prevent leading zero cutoff
+      description: "One Time In Person Donation",
+      card_brand: pm_details?.brand == null ? "unknown" : pm_details.brand,
+      transaction_id: intent.id,
+      application_name:
+        pm_details?.receipt?.application_preferred_name == null
+          ? ""
+          : pm_details.receipt.application_preferred_name,
+      aid:
+        pm_details?.receipt?.dedicated_file_name == null
+          ? ""
+          : pm_details.receipt.dedicated_file_name,
+      email_destination: email,
+      email_subject: "Bayonne Muslims Donation Receipt",
+    };
     const res = await fetch("http://email:8080/one-time-receipt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
     if (!res.ok) {
-      logger.error("Error trying to send email receipt", res.status);
+      logger.error("Error trying to send one-time email receipt", res.status);
     }
   } catch (error) {
-    logger.error("Unexpected error trying to email receipt", error);
+    logger.error("Unexpected error trying to email one-time receipt", error);
+  }
+}
+
+async function sendSubscriptionEmailReceipt(
+  intent: Stripe.PaymentIntent,
+  email: string,
+  customerId: string,
+  pm_details = intent.charges.data[0].payment_method_details?.card_present
+) {
+  try {
+    pool
+      .execute("INSERT INTO Receipt(transaction_id) VALUES(?)", [intent.id])
+      .catch((e) => logger.warn("Error adding receipt to database", e));
+    let params: SubscriptionEmailReceiptParams = {
+      amount_paid: intent.amount_received,
+      date_paid: new Date().toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      last4: pm_details?.last4 == null ? "----" : pm_details.last4, // Must be string to prevent leading zero cutoff
+      description: "Monthly Donation",
+      card_brand: pm_details?.brand == null ? "unknown" : pm_details.brand,
+      transaction_id: intent.id,
+      application_name:
+        pm_details?.receipt?.application_preferred_name == null
+          ? ""
+          : pm_details.receipt.application_preferred_name,
+      aid:
+        pm_details?.receipt?.dedicated_file_name == null
+          ? ""
+          : pm_details.receipt.dedicated_file_name,
+      email_destination: email,
+      email_subject: "Bayonne Muslims Monthly Donation Receipt",
+      customer_id: customerId,
+    };
+    const res = await fetch("http://email:8080/subscription-receipt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      logger.error("Error trying to send subscription email receipt", res.status);
+    }
+  } catch (error) {
+    logger.error("Unexpected error trying to email subscription receipt", error);
   }
 }
 
@@ -412,29 +495,7 @@ app.post("/attach_email", async (req, res) => {
     let intent = await stripe.paymentIntents.retrieve(body["intentId"]);
     let pm_details = intent.charges.data[0].payment_method_details?.card_present;
 
-    sendOneTimeEmail({
-      amount_paid: intent.amount_received,
-      // TODO Make sure to set timezone data to get proper date
-      date_paid: new Date().toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      last4: pm_details?.last4 == null ? "----" : pm_details.last4, // Must be string to prevent leading zero cutoff
-      description: "One Time In Person Donation",
-      card_brand: pm_details?.brand == null ? "unknown" : pm_details.brand,
-      transaction_id: intent.id,
-      application_name:
-        pm_details?.receipt?.application_preferred_name == null
-          ? ""
-          : pm_details.receipt.application_preferred_name,
-      aid:
-        pm_details?.receipt?.dedicated_file_name == null
-          ? ""
-          : pm_details.receipt.dedicated_file_name,
-      email_destination: body["email"],
-      email_subject: "Bayonne Muslims Donation Receipt",
-    });
+    sendOneTimeEmailReceipt(intent, body["email"]);
 
     findCustomer(intent, body, pm_details);
   } catch (error) {
@@ -471,16 +532,59 @@ app.post("/attach_subscription_email", async (req, res) => {
 
   try {
     let intent = await stripe.paymentIntents.retrieve(body["intentId"]);
-    if (intent.charges.data[0].payment_method_details?.card_present?.generated_card == null) {
+    let pm_details = intent.charges.data[0].payment_method_details?.card_present;
+    if (pm_details?.generated_card == null) {
       await stripe.paymentIntents.capture(intent.id);
       await findCustomer(intent, body);
+      sendOneTimeEmailReceipt(intent, body["email"]);
       return;
     }
     let customerId = await findCustomer(intent, body);
     intent = await stripe.paymentIntents.update(intent.id, {
       customer: customerId,
     });
-  } catch (error) {}
+    await stripe.paymentMethods.attach(pm_details.generated_card, {
+      customer: customerId,
+    });
+    let priceId = pricesDict[intent.amount as keyof typeof pricesDict] as string | undefined;
+    let subscriptionItem =
+      priceId != null
+        ? { price: priceId }
+        : {
+            price_data: {
+              currency: "usd",
+              product: otherProductId,
+              recurring: { interval: "month" as "month" | "day" | "week" | "year" },
+              unit_amount: intent.amount,
+            },
+          };
+    await stripe.subscriptions.create({
+      customer: customerId,
+      default_payment_method: pm_details.generated_card,
+      billing_cycle_anchor: dayjs().add(1, "month").unix(),
+      off_session: true,
+      items: [subscriptionItem],
+      proration_behavior: "none",
+    });
+    intent = await stripe.paymentIntents.capture(intent.id);
+    sendSubscriptionEmailReceipt(intent, body["email"], customerId);
+  } catch (error) {
+    logger.error("Error trying to initiate subscription", error);
+  }
+});
+
+app.get("/donation-portal/:customerId", async (req, res) => {
+  let customerId = req.params["customerId"];
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: "https://bayonnemuslims.com",
+    });
+    res.redirect(session.url);
+  } catch (error) {
+    res.sendStatus(400);
+    logger.error("Error serving a donation portal page", error);
+  }
 });
 
 /**
@@ -489,10 +593,19 @@ app.post("/attach_subscription_email", async (req, res) => {
  * object created when the function is called.
  */
 function getFirstFridayOfNextMonth(now = dayjs()) {
-  let firstDayOfNextMonth = now.add(1, "month").startOf("month");
+  let firstDayOfNextMonth = dayjs.unix(getFirstDayOfNextMonth(now));
   let firstFridayOfNextMonth =
     firstDayOfNextMonth.day() == 6 ? firstDayOfNextMonth.day(12) : firstDayOfNextMonth.day(5);
   return firstFridayOfNextMonth.add(3, "hour").unix();
+}
+
+/**
+ * Returns the Unix timestamp(in seconds) corresponding to 3 AM on the first day of next month.
+ * @param now Returned timestamp will be relative to this optional parameter. Defaults to a dayjs
+ * object created when the function is called.
+ */
+function getFirstDayOfNextMonth(now = dayjs()) {
+  return now.add(1, "month").startOf("month").add(3, "hour").unix();
 }
 
 app.post("/process_subscription_intent", async (req, res) => {

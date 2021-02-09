@@ -1,33 +1,29 @@
 import dayjs from "dayjs";
 
-// console.log(dayjs().get('month'));
 let now = dayjs();
-// console.log(now.toString());
 let firstDayOfNextMonth = dayjs()
   .month(now.get("month") + 4)
   .startOf("month");
-// console.log(firstDayOfNextMonth.toString());
-// console.log(firstDayOfNextMonth.day(5).toString());
-// console.log(firstDayOfNextMonth.day(12).toString());
 // If the first day of the month is a Saturday(6), the first Friday(5 or 12) of that month occurs in the next week.
 // You need to use .day(12) in this case because .day(5) will get the last Friday of the previous month.
 let firstFridayOfNextMonth =
   firstDayOfNextMonth.day() == 6 ? firstDayOfNextMonth.day(12) : firstDayOfNextMonth.day(5);
-// console.log(firstFridayOfNextMonth.toString());
-(async () => {
-  for (let i = 0; i < 10; i++) {
-    //   let firstDayOfNextMonth = dayjs().add(i, "month").startOf("month");
-    //   let firstFridayOfNextMonth =
-    //     firstDayOfNextMonth.day() == 6 ? firstDayOfNextMonth.day(12) : firstDayOfNextMonth.day(5);
-    //   firstFridayOfNextMonth = firstFridayOfNextMonth.add(3, "hour");
-    //   console.log(
-    //     `First Day: ${firstDayOfNextMonth.toString()} | First Friday: ${firstFridayOfNextMonth.toString()}`
-    //   );
+// (async () => {
+//   for (let i = 0; i < 10; i++) {
+//     //   let firstDayOfNextMonth = dayjs().add(i, "month").startOf("month");
+//     //   let firstFridayOfNextMonth =
+//     //     firstDayOfNextMonth.day() == 6 ? firstDayOfNextMonth.day(12) : firstDayOfNextMonth.day(5);
+//     //   firstFridayOfNextMonth = firstFridayOfNextMonth.add(3, "hour");
+//     //   console.log(
+//     //     `First Day: ${firstDayOfNextMonth.toString()} | First Friday: ${firstFridayOfNextMonth.toString()}`
+//     //   );
 
-    await sleep(1000);
-    getFirstFridayOfNextMonth();
-  }
-})();
+//     await sleep(1000);
+//     getFirstFridayOfNextMonth();
+//   }
+// })();
+let firstFridayOfThisMonth =
+  now.startOf("month").day() == 6 ? now.startOf("month").day(12) : now.startOf("month").day(5);
 
 function sleep(ms: number) {
   return new Promise((resolve) => {

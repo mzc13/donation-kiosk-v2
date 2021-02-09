@@ -1,4 +1,7 @@
-// @ts-ignore - This function gets reused across scripts for multiple pages
+const message = document.getElementById("message") as HTMLDivElement;
+const error = document.getElementById("error") as HTMLDivElement;
+const header = document.getElementById("header") as HTMLHeadingElement;
+
 function findGetParameter(parameterName: string) {
   let result: string | undefined,
     tmp: string[] = [];
@@ -14,7 +17,12 @@ function findGetParameter(parameterName: string) {
   }
   return result;
 }
-document.getElementById("message")!.innerText = findGetParameter("message");
-document.getElementById("error")!.innerText = findGetParameter("errorObject");
+message.innerText = findGetParameter("message");
+error.innerText = findGetParameter("errorObject");
+
+if(findGetParameter('transactionType') == 'subscription'){
+  header.innerText = "Monthly Donation";
+}
 
 setTimeout(() => window.location.replace("/static/index.html"), 10000);
+export {}

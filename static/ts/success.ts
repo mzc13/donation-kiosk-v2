@@ -1,5 +1,6 @@
 const yesButton = document.getElementById("yesButton") as HTMLButtonElement;
 const noButton = document.getElementById("noButton") as HTMLButtonElement;
+const message = document.getElementById("message") as HTMLDivElement;
 
 let intentId = findGetParameter("intentId");
 let fingerprint = "";
@@ -8,7 +9,6 @@ let last4 = "";
 let expMonth = "";
 let expYear = "";
 
-// @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
   let result: string | undefined,
     tmp: string[] = [];
@@ -57,3 +57,11 @@ noButton.onclick = noAction;
 loadCardDetails(intentId);
 
 // TODO Check if subscription failed and change text accordingly
+if (findGetParameter("subscriptionFail") == "true") {
+  message.innerHTML =
+    "Contactless payment methods cannot be used for monthly donation." +
+    "<br />" +
+    "Your donation was treated as a One Time Donation.";
+}
+
+export {};

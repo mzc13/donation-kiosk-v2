@@ -7,3 +7,4 @@ export const pricesDict = {
   15000: "price_1IFitLBpNWYY0aYoKnmv3rdy",
   18000: "price_1IFitnBpNWYY0aYoSVRV7lgK",
 };
+export const otherProductId = "prod_IrS88EYVv1N5Td";

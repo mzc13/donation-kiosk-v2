@@ -62,20 +62,21 @@ type OneTimeEmailReceiptParams = {
   email_destination: string;
   email_subject: string;
 };
+type SubscriptionEmailReceiptParams = OneTimeEmailReceiptParams & { customer_id: string };
 type IntentIdCarrier = {
   intentId: string;
-}
+};
 type AmountCarrier = {
   amount: string;
-}
+};
 type CardInfoCarrier = {
-  fingerprint: string,
-  last4: string,
-  exp_month: string,
-  exp_year: string,
-  brand: string
-}
+  fingerprint: string;
+  last4: string;
+  exp_month: string;
+  exp_year: string;
+  brand: string;
+};
 type ReceiptInfoCarrier = {
-  email: string,
-  intentId: string
-}
+  email: string;
+  intentId: string;
+};

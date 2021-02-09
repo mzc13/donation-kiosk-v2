@@ -11,11 +11,11 @@ const donationAmountField = document.getElementById("donationAmount") as HTMLPar
 const terminal: Terminal = StripeTerminal.create({
   onFetchConnectionToken: fetchConnectionToken,
   // TODO Replace this with a function that can actually handle reader disconnect
-  onUnexpectedReaderDisconnect: () => error("Reader disconnected"),
+  onUnexpectedReaderDisconnect: () => subscriptionError("Reader disconnected"),
 });
 
-function error(message: string, errorObject: ExposedError | null = null) {
-  let redirStr = "/static/error.html?message=" + message;
+function subscriptionError(message: string, errorObject: ExposedError | null = null) {
+  let redirStr = `/static/error.html?message=${message}&transactionType=subscription`;
   if (errorObject != null) {
     redirStr += "&errorObject=" + JSON.stringify(errorObject);
   }
@@ -31,9 +31,9 @@ async function connectReaderHandler() {
   const discoverResult = await terminal.discoverReaders();
   if ("error" in discoverResult) {
     console.error(discoverResult.error);
-    error("Failed to discover card reader.");
+    subscriptionError("Failed to discover card reader.");
   } else if (discoverResult.discoveredReaders.length === 0) {
-    error("No available card readers.");
+    subscriptionError("No available card readers.");
   } else {
     let selectedReader;
     for (let reader of discoverResult.discoveredReaders) {
@@ -43,12 +43,12 @@ async function connectReaderHandler() {
       }
     }
     if (selectedReader == null) {
-      error("Could not find reader with label " + readerLabel);
+      subscriptionError("Could not find reader with label " + readerLabel);
     }
     const connectResult = await terminal.connectReader(selectedReader as Reader);
     if ("error" in connectResult) {
       console.error(connectResult.error);
-      error('Failed to connect to reader with label "' + readerLabel + '"');
+      subscriptionError('Failed to connect to reader with label "' + readerLabel + '"');
     } else {
       console.log("Connected to reader: ", connectResult.reader.label);
     }
@@ -59,20 +59,20 @@ async function checkout(amount: Number) {
     terminal.getConnectionStatus() == "not_connected" ||
     terminal.getConnectionStatus() == "connecting"
   ) {
-    error("Not connected to card reader.");
+    subscriptionError("Not connected to card reader.");
     return;
   }
   pIntent = await createSubscriptionIntent(amount);
   const cardCaptureResult = await terminal.collectPaymentMethod(pIntent.client_secret);
   if ("error" in cardCaptureResult) {
-    error(cardCaptureResult.error.message);
+    subscriptionError(cardCaptureResult.error.message);
     return;
   }
   // The result of processing the payment
   cancelButton.disabled = true;
   const processingResult = await terminal.processPayment(cardCaptureResult.paymentIntent);
   if ("error" in processingResult) {
-    error(processingResult.error.message);
+    subscriptionError(processingResult.error.message);
     return;
   }
   // Notifying your backend to capture result.paymentIntent.id
@@ -100,7 +100,7 @@ async function checkout(amount: Number) {
       );
     }
   } else {
-    error("There was an error processing your card.");
+    subscriptionError("There was an error processing your card.");
   }
 }
 // Gets called by cancel button
@@ -117,7 +117,7 @@ async function cancelPayment() {
   }
   const cancelResult = await terminal.clearReaderDisplay();
   if ("error" in cancelResult) {
-    error(cancelResult.error.message);
+    subscriptionError(cancelResult.error.message);
   } else {
     window.location.replace("/static/index.html");
   }
@@ -188,7 +188,7 @@ function findGetParameter(parameterName: string) {
 function init() {
   let donationAmountString = findGetParameter("donationAmount");
   if (donationAmountString == null || donationAmountString == "") {
-    error("No donation amount specified.");
+    subscriptionError("No donation amount specified.");
     return;
   }
   let donationAmount = Number.parseInt((Number.parseFloat(donationAmountString) * 100).toFixed());

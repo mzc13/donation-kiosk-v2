@@ -4,29 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="/static/tcss.css" rel="stylesheet" />
-    <title>Error</title>
+    <title>Success | Monthly Donation</title>
   </head>
   <body class="bg-purple-50 bg-opacity-50">
     <div class="grid grid-cols-4 mt-5 h-24">
       <div class="flex col-start-2 col-span-2">
-        <h1 id="header" class="text-center m-auto font-bold text-5xl">One Time Donation</h1>
+        <h1 class="text-center m-auto font-bold text-5xl">Monthly Donation</h1>
       </div>
     </div>
     <div class="grid grid-cols-5 mt-5">
       <div class="flex flex-col col-start-2 col-span-3">
-        <img src="/static/img/x_vector.svg" class="opacity-90 h-48 w-auto" />
-        <div id="message" class="mt-5 text-center text-4xl"></div>
+        <img src="/static/img/check_vector.svg" class="opacity-90 h-48 w-auto" />
+        <div id="message" class="mt-5 text-center text-4xl">Thank you for your donation.</div>
         <button
-          class="mx-auto mt-12 p-4 focus:outline-none shadow w-max text-white text-7xl rounded-xl"
+          class="mx-auto mt-12 p-4 focus:outline-none shadow w-max text-white bg-green-600 text-7xl rounded-xl"
           onclick="location.href='/static/index.html'"
-          style="background-color: #990017"
         >
-          Cancel
+          Finish
         </button>
       </div>
     </div>
-
-    <div id="error"></div>
-    <script type="module" src="/static/js/error.js"></script>
+    <script>
+      setTimeout(() => window.location.replace("/static/index.html"), 10000);
+    </script>
   </body>
 </html>

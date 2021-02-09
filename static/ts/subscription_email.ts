@@ -7,7 +7,6 @@ let selectedEmail = "other";
 
 const intentId = findGetParameter("intentId");
 
-// @ts-ignore - This function gets reused across scripts for multiple pages
 function findGetParameter(parameterName: string) {
   let result: string | undefined,
     tmp: string[] = [];
@@ -102,10 +101,10 @@ async function finish() {
   };
   if (selectedEmail != "other") {
     attachSubscriptionEmail(selectedEmail);
-    window.location.replace("/static/index.html");
+    window.location.replace("/static/subscription_success.html");
   } else if (otherEmailInput.value.trim() != "") {
     attachSubscriptionEmail(otherEmailInput.value.trim());
-    window.location.replace("/static/index.html");
+    window.location.replace("/static/subscription_success.html");
   } else {
     otherEmailInput.classList.remove("focus:ring-purple-600");
     otherEmailInput.classList.add("ring-red-300");
@@ -113,8 +112,8 @@ async function finish() {
   }
 }
 
-function error(message: string) {
-  let redirStr = "/static/error.html?message=" + message;
+function subscriptionError(message: string) {
+  let redirStr = `/static/error.html?message=${message}&transactionType=subscription`;
   window.location.replace(redirStr);
 }
 
@@ -122,7 +121,7 @@ function cancelPayment() {
   if (intentId != null && intentId != "") {
     cancelIntent(intentId);
   }
-  error("Payment Cancelled");
+  subscriptionError("Payment Cancelled");
 }
 async function cancelIntent(intentId: string) {
   const res = await fetch("/cancel_intent", {
