@@ -111,4 +111,4 @@ loadEmailButtons();
 finishButton.onclick = finish;
 let timeout = setTimeout(() => window.location.replace("/static/index.html"), 120000);
 
-export {}
+export {};

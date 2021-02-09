@@ -20,9 +20,9 @@ function findGetParameter(parameterName: string) {
 message.innerText = findGetParameter("message");
 error.innerText = findGetParameter("errorObject");
 
-if(findGetParameter('transactionType') == 'subscription'){
+if (findGetParameter("transactionType") == "subscription") {
   header.innerText = "Monthly Donation";
 }
 
 setTimeout(() => window.location.replace("/static/index.html"), 10000);
-export {}
+export {};

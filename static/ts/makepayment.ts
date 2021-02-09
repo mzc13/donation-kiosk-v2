@@ -1,7 +1,7 @@
 import { ErrorResponse, ExposedError, IPaymentIntent, Reader, Terminal } from "@stripe/terminal-js";
 import Stripe from "stripe";
 
-const readerLabel = "women";
+const readerLabel = "men";
 let pIntent: { intentId: string; client_secret: string } | undefined;
 
 const cancelButton = document.getElementById("cancelButton") as HTMLButtonElement;
